@@ -44,8 +44,7 @@ from checkov.common.util.type_forcers import convert_csv_string_arg_to_list, for
 from checkov.sca_image.runner import Runner as image_runner
 from checkov.secrets.consts import SECRET_VALIDATION_STATUSES
 from checkov.terraform.context_parsers.registry import parser_registry
-from checkov.terraform.parser import Parser
-from checkov.terraform.runner import Runner as tf_runner
+from checkov.terraform.tf_parser import TFParser
 
 if TYPE_CHECKING:
     from checkov.common.output.baseline import Baseline
@@ -655,14 +654,14 @@ class RunnerRegistry:
     def get_enriched_resources(
         repo_roots: list[str | Path], download_external_modules: bool
     ) -> dict[str, dict[str, Any]]:
+        from checkov.terraform.modules.module_objects import TFDefinitionKey
+
         repo_definitions = {}
         for repo_root in repo_roots:
-            tf_definitions: dict[str, Any] = {}
             parsing_errors: dict[str, Exception] = {}
             repo_root = os.path.abspath(repo_root)
-            Parser().parse_directory(
+            tf_definitions: dict[TFDefinitionKey, dict[str, list[dict[str, Any]]]] = TFParser().parse_directory(
                 directory=repo_root,  # assume plan file is in the repo-root
-                out_definitions=tf_definitions,
                 out_parsing_errors=parsing_errors,
                 download_external_modules=download_external_modules,
             )
@@ -670,9 +669,10 @@ class RunnerRegistry:
 
         enriched_resources = {}
         for repo_root, parse_results in repo_definitions.items():
-            for full_file_path, definition in parse_results['tf_definitions'].items():
+            definitions = cast("dict[TFDefinitionKey, dict[str, list[dict[str, Any]]]]", parse_results['tf_definitions'])
+            for full_file_path, definition in definitions.items():
                 definitions_context = parser_registry.enrich_definitions_context((full_file_path, definition))
-                abs_scanned_file, _ = tf_runner._strip_module_referrer(full_file_path)
+                abs_scanned_file = full_file_path.file_path
                 scanned_file = os.path.relpath(abs_scanned_file, repo_root)
                 for block_type, block_value in definition.items():
                     if block_type in CHECK_BLOCK_TYPES:

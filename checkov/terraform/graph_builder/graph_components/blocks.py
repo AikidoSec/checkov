@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
-from typing import Union, Dict, Any, List, Optional, Set, TYPE_CHECKING
+from typing import Union, Dict, Any, List, Optional, Set, TYPE_CHECKING, cast
 import dpath
 import re
 
-from checkov.common.runners.base_runner import strtobool
+from checkov.common.graph.graph_builder import CustomAttributes
+from checkov.common.graph.graph_builder.utils import calculate_hash
 from checkov.common.typing import TFDefinitionKeyType
 from checkov.terraform.graph_builder.utils import INTERPOLATION_EXPR
 from checkov.common.graph.graph_builder.graph_components.blocks import Block
@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 class TerraformBlock(Block):
     __slots__ = (
         "module_connections",
-        "module_dependency",
-        "module_dependency_num",
         "source_module",
         "has_dynamic_block",
         "dynamic_attributes",
@@ -60,8 +58,6 @@ class TerraformBlock(Block):
             has_dynamic_block=has_dynamic_block,
             dynamic_attributes=dynamic_attributes,
         )
-        self.module_dependency: TFDefinitionKeyType | None = ""
-        self.module_dependency_num: str | None = ""
         if path:
             self.path = path  # type:ignore[assignment]  # Block class would need to be a Generic type to make this pass
         if attributes.get(RESOLVED_MODULE_ENTRY_NAME):
@@ -70,10 +66,9 @@ class TerraformBlock(Block):
         self.module_connections: Dict[str, List[int]] = {}
         self.source_module: Set[int] = set()
         self.has_dynamic_block = has_dynamic_block
-        if strtobool(os.getenv('CHECKOV_NEW_TF_PARSER', 'True')):
-            self.source_module_object: Optional[TFModule] = None
-            self.for_each_index: Optional[Any] = None
-            self.foreach_attrs: list[str] | None = None
+        self.source_module_object: Optional[TFModule] = None
+        self.for_each_index: Optional[Any] = None
+        self.foreach_attrs: list[str] | None = None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TerraformBlock):
@@ -204,10 +199,21 @@ class TerraformBlock(Block):
             'config': self.config,
             'id': self.id,
             'module_connections': self.module_connections,
-            'module_dependency': self.module_dependency,
-            'module_dependency_num': self.module_dependency_num,
             'name': self.name,
             'path': self.path,
             'source': self.source,
             'source_module': list(self.source_module)
         }
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> TerraformBlock:
+        tf_block = TerraformBlock(name=data.get('name', ''), block_type=data.get('block_type', ''),
+                                  config=data.get('config', {}), id=data.get('id', ''),
+                                  path=data.get('path', ''), source=data.get('source', ''),
+                                  attributes=data.get('attributes', {})
+                                  )
+
+        tf_block.breadcrumbs = data.get('breadcrumbs', {})
+        tf_block.module_connections = data.get('module_connections', {})
+        tf_block.source_module = data.get('source_module', set())
+        return tf_block
