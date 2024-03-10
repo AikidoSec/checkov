@@ -389,3 +389,36 @@ def test_foreach_with_lookup():
     graph, _ = build_and_get_graph_by_path(dir_name, render_var=True)
     assert graph.vertices[0].attributes.get('uniform_bucket_level_access') == [True]
     assert graph.vertices[1].attributes.get('uniform_bucket_level_access') == [True]
+
+
+@mock.patch.dict(os.environ, {"CHECKOV_ENABLE_MODULES_FOREACH_HANDLING": "True"})
+def test_foreach_large_count_with_nested_module(checkov_source_path):
+    dir_name = 'os_example_large_count_with_nested_module'
+    graph, _ = build_and_get_graph_by_path(dir_name, render_var=True)
+    assert len(graph.vertices) == 85
+
+
+def test__get_tf_module_with_no_foreach():
+    module = TFModule(name='1', path='1', foreach_idx='1',
+                      nested_tf_module=TFModule(name='2', path='2', foreach_idx='2', nested_tf_module=None))
+    result = ForeachModuleHandler._get_tf_module_with_no_foreach(module)
+    assert result == TFModule(name='1', path='1', foreach_idx=None,
+                      nested_tf_module=TFModule(name='2', path='2', foreach_idx=None, nested_tf_module=None))
+
+
+def test__get_module_with_only_relevant_foreach_idx():
+    module = TFModule(name='1', path='1', foreach_idx='1',
+                      nested_tf_module=TFModule(name='2', path='2', foreach_idx='2',
+                                                nested_tf_module=TFModule(name='3', path='3', foreach_idx='3',
+                                                                          nested_tf_module=None)
+                                                )
+                      )
+    original_key = TFModule(name='2', path='2', foreach_idx='2',
+                            nested_tf_module=TFModule(name='3', path='3', foreach_idx='3', nested_tf_module=None))
+    result = ForeachModuleHandler._get_module_with_only_relevant_foreach_idx('test', original_key, module)
+    assert result == TFModule(name='1', path='1', foreach_idx='1',
+                      nested_tf_module=TFModule(name='2', path='2', foreach_idx='test',
+                                                nested_tf_module=TFModule(name='3', path='3', foreach_idx='3',
+                                                                          nested_tf_module=None)
+                                                )
+                      )
