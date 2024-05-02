@@ -8,6 +8,7 @@ from checkov.terraform.graph_builder.graph_to_tf_definitions import convert_grap
 from checkov.terraform.graph_manager import TerraformGraphManager
 from checkov.common.graph.graph_builder import CustomAttributes
 from checkov.terraform.modules.module_utils import external_modules_download_path
+from checkov.terraform.plan_utils import create_definitions
 
 TEST_DIRNAME = os.path.dirname(os.path.realpath(__file__))
 
@@ -333,6 +334,51 @@ class TestGraphBuilder(TestCase):
         graph_manager = TerraformGraphManager(db_connector=NetworkxConnector())
         # Shouldn't throw exception
         graph_manager.build_graph_from_source_directory(resources_dir)
+
+    def test_build_rustworkx_graph(self):
+        resources_dir = os.path.join(TEST_DIRNAME, '../resources/general_example')
+
+        graph_manager = TerraformGraphManager(db_connector=RustworkxConnector())
+        graph, tf_definitions = graph_manager.build_graph_from_source_directory(resources_dir)
+
+        expected_num_of_var_nodes = 3
+        expected_num_of_locals_nodes = 1
+        expected_num_of_resources_nodes = 1
+        expected_num_of_provider_nodes = 1
+        vertices_by_block_type = graph.vertices_by_block_type
+        self.assertEqual(expected_num_of_var_nodes, len(vertices_by_block_type[BlockType.VARIABLE]))
+        self.assertEqual(expected_num_of_locals_nodes, len(vertices_by_block_type[BlockType.LOCALS]))
+        self.assertEqual(expected_num_of_resources_nodes, len(vertices_by_block_type[BlockType.RESOURCE]))
+        self.assertEqual(expected_num_of_provider_nodes, len(vertices_by_block_type[BlockType.PROVIDER]))
+
+        provider_node = graph.vertices[vertices_by_block_type[BlockType.PROVIDER][0]]
+        resource_node = graph.vertices[vertices_by_block_type[BlockType.RESOURCE][0]]
+        local_node = graph.vertices[graph.vertices_block_name_map[BlockType.LOCALS]["bucket_name"][0]]
+
+        var_bucket_name_node = None
+        var_region_node = None
+        var_aws_profile_node = None
+        for index in vertices_by_block_type[BlockType.VARIABLE]:
+            var_node = graph.vertices[index]
+            if var_node.name == 'aws_profile':
+                var_aws_profile_node = var_node
+            if var_node.name == 'bucket_name':
+                var_bucket_name_node = var_node
+            if var_node.name == 'region':
+                var_region_node = var_node
+
+        self.check_edge(graph, resource_node, local_node, 'bucket')
+        self.check_edge(graph, resource_node, provider_node, 'provider')
+        self.check_edge(graph, resource_node, var_region_node, 'region')
+        self.check_edge(graph, provider_node, var_aws_profile_node, 'profile')
+        self.check_edge(graph, local_node, var_bucket_name_node, 'bucket_name')
+    
+    def test_multiple_modules_with_connected_resources(self):
+        valid_plan_path = os.path.realpath(os.path.join(TEST_DIRNAME, '../resources/modules_edges_tfplan/tfplan.json'))
+        definitions, definitions_raw = create_definitions(root_folder=None, files=[valid_plan_path])
+        graph_manager = TerraformGraphManager(db_connector=RustworkxConnector())
+        tf_plan_local_graph = graph_manager.build_graph_from_definitions(definitions, render_variables=False)
+        self.assertTrue(tf_plan_local_graph.in_edges[2])
 
 
 def build_new_key_for_tf_definition(key):

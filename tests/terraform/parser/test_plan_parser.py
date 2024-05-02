@@ -51,6 +51,23 @@ class TestPlanFileParser(unittest.TestCase):
             tf_definition, _ = parse_tf_plan(plan_path, {})
             self.assertEqual(list(tf_definition['resource'][0].keys())[0], "aws_s3_bucket")
 
+    def test_provisioners(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        valid_plan_path = current_dir + "/resources/plan_provisioners/tfplan.json"
+        tf_definition, _ = parse_tf_plan(valid_plan_path, {})
+        file_resource_definition = tf_definition['resource'][1]
+        resource_definition = next(iter(file_resource_definition.values()))
+        resource_attributes = next(iter(resource_definition.values()))
+        self.assertTrue(resource_attributes['provisioner'])
+
+    def test_module_with_connected_resources(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        valid_plan_path = current_dir + "/resources/plan_module_with_connected_resources/tfplan.json"
+        tf_definition, _ = parse_tf_plan(valid_plan_path, {})
+        file_resource_definition = tf_definition['resource'][1]
+        resource_definition = next(iter(file_resource_definition.values()))
+        resource_attributes = next(iter(resource_definition.values()))
+        self.assertTrue(resource_attributes['references_'])
 
 def test_large_file(mocker: MockerFixture):
     # given
