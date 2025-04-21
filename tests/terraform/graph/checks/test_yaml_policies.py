@@ -102,6 +102,9 @@ class TestYamlPolicies(unittest.TestCase):
 
     def test_AWSConfigRecorderEnabled(self):
         self.go("AWSConfigRecorderEnabled")
+    
+    def test_Route53ZoneEnableDNSSECSigning(self):
+        self.go("Route53ZoneEnableDNSSECSigning")
 
     def test_CLoudFrontS3OriginConfigWithOAI(self):
         self.go("CLoudFrontS3OriginConfigWithOAI")
