@@ -79,7 +79,6 @@ aiodns = "*"
 aiomultiprocess = "*"
 jsonschema = ">=4.6.0,<5.0.0"
 prettytable = ">=3.0.0"
-pycep-parser = "==0.4.1"
 charset-normalizer = "*"
 pyston-autoload = {version = "==2.3.5", markers="python_version < '3.11' and (sys_platform == 'linux' or sys_platform == 'darwin') and platform_machine == 'x86_64' and implementation_name == 'cpython'", index="pypi"}
 pyston = {version = "==2.3.5", markers="python_version < '3.11' and (sys_platform == 'linux' or sys_platform == 'darwin') and platform_machine == 'x86_64' and implementation_name == 'cpython'", index="pypi"}
@@ -90,6 +89,7 @@ openai = "*"
 spdx-tools = "<0.8.0"
 license-expression = "==30.1.0"
 asteval = "==1.0.6"
+pycep-parser = {ref = "591b04f71b2e52d7dfc14acb708a2e1fc2c89cf7", git = "https://github.com/gruebel/pycep.git"}
 
 [requires]
 python_version = "3.7"
