@@ -60,7 +60,6 @@ tqdm = "*"
 update-checker = "*"
 semantic-version = "*"
 packaging = "*"
-cloudsplaining = ">=0.4.3"
 networkx = "<2.7"
 igraph = "<0.11.0"  # there will be some breaking changes, but not sure yet, if we will be affected
 dockerfile-parse ="*"
@@ -90,6 +89,7 @@ openai = "*"
 spdx-tools = "<0.8.0"
 license-expression = "==30.1.0"
 asteval = "==1.0.6"
+cloudsplaining = "==0.7.0"
 
 [requires]
 python_version = "3.7"
