@@ -82,7 +82,7 @@ setup(
         "update-checker",
         "semantic-version",
         "packaging",
-        "cloudsplaining>=0.4.3",
+        "cloudsplaining==0.7.0",
         "networkx<2.7",
         "igraph<0.11.0",
         "dockerfile-parse",
