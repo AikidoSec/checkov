@@ -5,7 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 #
-# REMINDER: Update "install_requires" deps on setup.py when changing
+# REMINDER: Update "dev" deps on setup.py when changing
 #
 pytest = "*"
 pytest-xdist = "*"
