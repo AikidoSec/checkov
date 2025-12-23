@@ -40,7 +40,7 @@ class StorageAccountDisablePublicAccess(BaseResourceCheck):
                     if conf["properties"]["networkAcls"]["defaultAction"] == "Deny":
                         return CheckResult.PASSED
                     
-        return CheckResult.PASSED
+        return CheckResult.FAILED
 
 
 check = StorageAccountDisablePublicAccess()
