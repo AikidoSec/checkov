@@ -1,29 +1,27 @@
 import unittest
 from pathlib import Path
-import pytest
 
+from checkov.arm.checks.resource.KeyVaultEnablesFirewallRulesSettings import check
+from checkov.arm.runner import Runner
 from checkov.runner_filter import RunnerFilter
-from checkov.terraform.checks.data.aws.ResourcePolicyDocument import check
-from checkov.terraform.runner import Runner
 
 
-class TestResourcePolicyDocument(unittest.TestCase):
-    # Adding as expected failure since we are building a baseline as of 22-12-2025.
-    @pytest.mark.xfail(reason="Baseline as of 22-12-2025", strict=False)
-    def test(self):
-        test_files_dir = Path(__file__).parent / "example_ResourcePolicyDocument"
+class TestKeyVaultEnablesFirewallRulesSettings(unittest.TestCase):
+    def test_summary(self):
+        # given
+        test_files_dir = Path(__file__).parent / "example_KeyVaultEnablesFirewallRulesSettings"
 
+        # when
         report = Runner().run(root_folder=str(test_files_dir), runner_filter=RunnerFilter(checks=[check.id]))
+
+        # then
         summary = report.get_summary()
 
         passing_resources = {
-            "aws_iam_policy_document.pass",
-            "aws_iam_policy_document.pass2",
-            "aws_iam_policy_document.pass_unrestrictable",
-            "aws_iam_policy_document.pass_condition",
+            "Microsoft.KeyVault/vaults.pass",
         }
         failing_resources = {
-            "aws_iam_policy_document.fail",
+            "Microsoft.KeyVault/vaults.fail",
         }
 
         passed_check_resources = {c.resource for c in report.passed_checks}
