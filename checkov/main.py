@@ -47,7 +47,6 @@ from checkov.common.resource_code_logger_filter import add_resource_code_filter_
 from checkov.common.runners.runner_registry import RunnerRegistry
 from checkov.common.util import prompt
 from checkov.common.util.banner import banner as checkov_banner, tool as checkov_tool
-from checkov.common.util.config_utils import get_default_config_paths
 from checkov.common.util.consts import CHECKOV_RUN_SCA_PACKAGE_SCAN_V2
 from checkov.common.util.docs_generator import print_checks
 from checkov.common.util.ext_argument_parser import ExtArgumentParser
@@ -156,7 +155,7 @@ class Checkov:
     def parse_config(self, argv: list[str] = sys.argv[1:]) -> None:
         """Parses the user defined config via CLI flags"""
 
-        default_config_paths = get_default_config_paths(sys.argv[1:])
+        default_config_paths = [] # support for file based config is removed 
         self.parser = ExtArgumentParser(
             description='Infrastructure as code static analysis',
             default_config_files=default_config_paths,
