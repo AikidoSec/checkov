@@ -47,7 +47,6 @@ from checkov.common.resource_code_logger_filter import add_resource_code_filter_
 from checkov.common.runners.runner_registry import RunnerRegistry
 from checkov.common.util import prompt
 from checkov.common.util.banner import banner as checkov_banner, tool as checkov_tool
-from checkov.common.util.config_utils import get_default_config_paths
 from checkov.common.util.consts import CHECKOV_RUN_SCA_PACKAGE_SCAN_V2
 from checkov.common.util.docs_generator import print_checks
 from checkov.common.util.ext_argument_parser import ExtArgumentParser
