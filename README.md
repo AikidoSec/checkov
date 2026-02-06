@@ -70,7 +70,7 @@ Scheduled scan result in Jenkins
 ## Getting started
 
 ### Requirements
- * Python >= 3.7 (Data classes are available for Python 3.7+)
+ * Python >= 3.14
  * Terraform >= 0.12
 
 ### Installation
@@ -473,6 +473,9 @@ You can even start this with one-click dev in your browser through Gitpod at the
 
 Looking to contribute new checks? Learn how to write a new check (AKA policy) [here](docs/6.Contribution/Contribution%20Overview.md).
 
+### Dependency management (developers)
+Dependencies are managed with **uv** as the source of truth. Edit `pyproject.toml` to add or change dependencies, then run **`./scripts/uv_update_lock.sh`** to refresh `uv.lock`, `setup.py`, `Pipfile`, and `Pipfile.lock`. CI checks that these files stay in sync.
+
 ## Disclaimer
 `checkov` does not save, publish or share with anyone any identifiable customer information.  
 No identifiable customer information is used to query Bridgecrew's publicly accessible guides.
@@ -488,4 +491,4 @@ Start with our [Documentation](https://bridgecrewio.github.io/checkov/) for quic
 If you need direct support you can contact us at info@bridgecrew.io.
 
 ## Python Version Support
-We follow the official support cycle of Python and we use automated tests for all supported versions of Python. This means we currently support Python 3.7 - 3.11, inclusive. Note that Python 3.7 is reaching EOL on June 2023. After that time, we will have a short grace period where we will continue 3.7 support until September 2023, and then it will no longer be considered supported for Checkov. If you run into any issues with any non-EOL Python version, please open an Issue.
+We follow the official support cycle of Python and we use automated tests for the supported version. This project requires **Python >= 3.14**. If you run into any issues, please open an Issue.
