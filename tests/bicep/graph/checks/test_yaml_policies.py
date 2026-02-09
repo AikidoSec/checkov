@@ -20,11 +20,13 @@ from tests.common.graph.checks.test_yaml_policies_base import TestYamlPoliciesBa
    {"graph_framework": "IGRAPH"}
 ])
 class TestYamlPolicies(TestYamlPoliciesBase):
-    def __init__(self, args):
+    __test__ = True
+
+    def __init__(self, methodName='runTest'):
         db_connector = None
-        if self.graph_framework == 'NETWORKX':
+        if getattr(self, 'graph_framework', 'NETWORKX') == 'NETWORKX':
             db_connector = NetworkxConnector()
-        elif self.graph_framework == 'IGRAPH':
+        elif getattr(self, 'graph_framework', 'NETWORKX') == 'IGRAPH':
             db_connector = IgraphConnector()
         graph_manager = BicepGraphManager(db_connector=db_connector)
         super().__init__(
@@ -35,7 +37,7 @@ class TestYamlPolicies(TestYamlPoliciesBase):
             test_checks_path="",
             check_type="bicep",
             test_file_path=__file__,
-            args=args,
+            args=methodName,
         )
 
     def setUp(self) -> None:

@@ -19,6 +19,8 @@ from checkov.runner_filter import RunnerFilter
 
 
 class TestYamlPoliciesBase(TestCase):
+    __test__ = False  # base only; parameterized subclasses set __test__ = True
+
     def __init__(self, graph_manager: GraphManager, real_graph_checks_path: str,
                  test_checks_path: Optional[str], check_type: str, test_file_path: str,
                  args):

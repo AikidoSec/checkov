@@ -19,21 +19,23 @@ from tests.common.graph.checks.test_yaml_policies_base import TestYamlPoliciesBa
    {"graph_framework": "IGRAPH"}
 ])
 class TestYamlPolicies(TestYamlPoliciesBase):
+    __test__ = True
+
     def tearDown(self) -> None:
         self.get_checks_registry().checks = []
 
-    def __init__(self, args):
+    def __init__(self, methodName='runTest'):
         db_connector = None
-        if self.graph_framework == 'NETWORKX':
+        if getattr(self, 'graph_framework', 'NETWORKX') == 'NETWORKX':
             db_connector = NetworkxConnector()
-        elif self.graph_framework == 'IGRAPH':
+        elif getattr(self, 'graph_framework', 'NETWORKX') == 'IGRAPH':
             db_connector = IgraphConnector()
         graph_manager = KubernetesGraphManager(db_connector=db_connector)
         real_graph_checks_relative_path = "checkov/kubernetes/checks/graph_checks"
         real_graph_checks_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
                                               real_graph_checks_relative_path)
         super().__init__(graph_manager, real_graph_checks_path,
-                         os.path.dirname(__file__) + "/test_checks", 'kubernetes', __file__, args)
+                         os.path.dirname(__file__) + "/test_checks", 'kubernetes', __file__, methodName)
 
     def test_AllowedCapabilities(self):
         self.go('AllowedCapabilities')

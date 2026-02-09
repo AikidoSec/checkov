@@ -23,16 +23,18 @@ file_dir = os.path.dirname(__file__)
    {"graph_framework": "IGRAPH"}
 ])
 class TestYamlPolicies(TestYamlPoliciesBase):
-    def __init__(self, args):
+    __test__ = True
+
+    def __init__(self, methodName='runTest'):
         db_connector = None
-        if self.graph_framework == 'NETWORKX':
+        if getattr(self, 'graph_framework', 'NETWORKX') == 'NETWORKX':
             db_connector = NetworkxConnector()
-        elif self.graph_framework == 'IGRAPH':
+        elif getattr(self, 'graph_framework', 'NETWORKX') == 'IGRAPH':
             db_connector = IgraphConnector()
         graph_manager = CloudformationGraphManager(db_connector=db_connector)
         super().__init__(graph_manager,
                          os.path.abspath(os.path.join(file_dir, "../../../../checkov/cloudformation/checks/graph_checks")),
-                         os.path.join(file_dir, "test_checks"), "cloudformation", __file__, args)
+                         os.path.join(file_dir, "test_checks"), "cloudformation", __file__, methodName)
 
     def setUp(self) -> None:
         warnings.filterwarnings("ignore", category=ResourceWarning)
