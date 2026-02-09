@@ -98,7 +98,7 @@ ply = {version = "==3.11"}
 policy-sentry = {version = "==0.14.2"}
 policyuniverse = {version = "==1.5.1.20231109"}
 pre-commit = {version = "==4.5.1"}
-prettytable = {version = "==3.17.0"}
+prettytable = {version = "==3.13.0"}
 propcache = {version = "==0.4.1"}
 pycares = {version = "==5.0.1"}
 pycep-parser = {version = "==0.6.1"}
