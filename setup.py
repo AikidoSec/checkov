@@ -127,7 +127,7 @@ setup(
         'ply==3.11',
         'policy-sentry==0.14.2',
         'policyuniverse==1.5.1.20231109',
-        'prettytable==3.13.0',
+        'prettytable==3.16.0',
         'propcache==0.4.1',
         'pycares==5.0.1',
         'pycep-parser==0.6.1',

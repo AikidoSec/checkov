@@ -521,7 +521,7 @@ requires-dist = [
     { name = "parameterized", marker = "extra == 'dev'" },
     { name = "policyuniverse" },
     { name = "pre-commit", marker = "extra == 'dev'" },
-    { name = "prettytable", specifier = "==3.13.0" },
+    { name = "prettytable", specifier = "==3.16.0" },
     { name = "pycep-parser", specifier = "==0.6.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==8.4.2" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
@@ -1436,14 +1436,14 @@ wheels = [
 
 [[package]]
 name = "prettytable"
-version = "3.13.0"
+version = "3.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "wcwidth" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/eb/ae616127eae724ff3bef04823a3eeb2633c85b769b6232af4fcc98c7c9d7/prettytable-3.13.0.tar.gz", hash = "sha256:30e1a097a7acb075b5c488ffe01195349b37009c2d43ca7fa8b5f6a61daace5b", size = 61087, upload-time = "2025-01-24T11:00:25.977Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/b1/85e18ac92afd08c533603e3393977b6bc1443043115a47bb094f3b98f94f/prettytable-3.16.0.tar.gz", hash = "sha256:3c64b31719d961bf69c9a7e03d0c1e477320906a98da63952bc6698d6164ff57", size = 66276, upload-time = "2025-03-24T19:39:04.008Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/65/461ab13c4d877d428d046c75576c6877381580fe3cdb8fd8231e402f5cac/prettytable-3.13.0-py3-none-any.whl", hash = "sha256:d4f5817a248b77ddaa25b27007566c0a6a064308d991516b61b436ffdbb4f8e9", size = 31871, upload-time = "2025-01-24T11:00:23.713Z" },
+    { url = "https://files.pythonhosted.org/packages/02/c7/5613524e606ea1688b3bdbf48aa64bafb6d0a4ac3750274c43b6158a390f/prettytable-3.16.0-py3-none-any.whl", hash = "sha256:b5eccfabb82222f5aa46b798ff02a8452cf530a352c31bddfa29be41242863aa", size = 33863, upload-time = "2025-03-24T19:39:02.359Z" },
 ]
 
 [[package]]

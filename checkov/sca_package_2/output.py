@@ -299,6 +299,7 @@ def create_cve_summary_table_part(table_width: int, column_width: int, cve_count
         max_table_width=table_width,
     )
     cve_table.set_style(SINGLE_BORDER)
+    cve_table.header = False  # set_style resets it; must set after
     cve_table.add_row(cve_count.output_row())
     cve_table.align = "l"
     cve_table.min_width = column_width
@@ -323,6 +324,7 @@ def create_fixable_cve_summary_table_part(
         header=False, min_table_width=table_width + column_count / 2, max_table_width=table_width + column_count / 2
     )
     fixable_table.set_style(SINGLE_BORDER)
+    fixable_table.header = False  # set_style resets it; must set after
     if cve_count.fixable:
         fixable_table.add_row(
             [f"To fix {cve_count.has_fix}/{cve_count.to_fix} CVEs, go to https://www.bridgecrew.cloud/  "])
