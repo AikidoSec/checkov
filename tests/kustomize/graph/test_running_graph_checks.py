@@ -1,13 +1,15 @@
+import os
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture
 
-import os
 from checkov.kustomize.runner import Runner
 from checkov.runner_filter import RunnerFilter
+from tests.kustomize.utils import kustomize_exists
 
 
+@pytest.mark.skipif(os.name == "nt" or not kustomize_exists(), reason="kustomize not installed or Windows OS")
 @pytest.mark.parametrize("graph_framework", ["NETWORKX", "IGRAPH"])
 def test_runner(mocker: MockerFixture, graph_framework):
     scan_dir_path = Path(__file__).parent / "resources" / "example_checks"

@@ -75,10 +75,10 @@ class TestBaseCheck(unittest.TestCase):
         scan_result = check.scan_entity_conf({}, "Some name")
         self.assertEqual(CheckResult.PASSED, scan_result)
         self.assertEqual(check.scan_entity_conf.__doc__, """
-        My documentation
-        :param conf:
-        :return:
-        """)
+My documentation
+:param conf:
+:return:
+""")
 
     def test_invalid_signature_is_detected(self):
         with self.assertRaises(NotImplementedError) as context:

@@ -1102,6 +1102,11 @@ def sca_package_report_dt(package_mocker: MockerFixture, scan_results_dt: Dict[s
     scanner_mock.return_value.scan.return_value = scan_results_dt
     package_mocker.patch("checkov.sca_package_2.runner.Scanner", side_effect=scanner_mock)
 
+    def none() -> None:
+        pass
+
+    bc_integration.set_s3_integration = none
+
     return Runner().run(root_folder=EXAMPLES_DIR)
 
 
