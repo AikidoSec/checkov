@@ -894,7 +894,7 @@ File: /requirements.txt: 0-0
 		</testcase>
 		<testcase name="[HIGH][CVE-2020-26160] github.com/dgrijalva/jwt-go: v3.2.0" classname="/path/to/go.sum.github.com/dgrijalva/jwt-go" file="/path/to/go.sum">
 			<failure type="failure" message="SCA package scan">
-Description: jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\&quot;aud\&quot;] (which is allowed by the specification). Because the type assertion fails, \&quot;\&quot; is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.
+Description: jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\"aud\"] (which is allowed by the specification). Because the type assertion fails, \"\" is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.
 Link: https://nvd.nist.gov/vuln/detail/CVE-2020-26160
 Published Date: 2020-09-30T20:15:00+02:00
 Base Score: 7.7
@@ -1042,7 +1042,7 @@ def test_get_junit_xml_string_py37(sca_package_2_report_with_skip):
             "\t\t\t",
             "\t\t\t",
             '\t\t\t<failure message="SCA package scan" type="failure">',
-            "Description: jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\\&quot;aud\\&quot;] (which is allowed by the specification). Because the type assertion fails, \\&quot;\\&quot; is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.",
+            "Description: jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\\\"aud\\\"] (which is allowed by the specification). Because the type assertion fails, \\\"\\\" is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.",
             "Link: https://nvd.nist.gov/vuln/detail/CVE-2020-26160",
             "Published Date: 2020-09-30T20:15:00+02:00",
             "Base Score: 7.7",

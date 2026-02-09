@@ -279,7 +279,7 @@
 					<vector>AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N</vector>
 				</rating>
 			</ratings>
-			<description>jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\&quot;aud\&quot;] (which is allowed by the specification). Because the type assertion fails, \&quot;\&quot; is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.</description>
+			<description>jwt-go before 4.0.0-preview1 allows attackers to bypass intended access restrictions in situations with []string{} for m[\"aud\"] (which is allowed by the specification). Because the type assertion fails, \"\" is the value of aud. This is a security problem if the JWT token is presented to a service that lacks its own audience check.</description>
 			<recommendation>Fixed in 4.0.0rc1</recommendation>
 			<published>2020-09-30T20:15:00+02:00</published>
 			<affects>
