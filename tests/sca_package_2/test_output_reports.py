@@ -90,8 +90,8 @@ def test_console_output(mocker, sca_package_2_report):
 # Adding as expected failure since we are building a baseline as of 22-12-2025.
 @pytest.mark.xfail(reason="Baseline as of 22-12-2025", strict=False)
 def test_console_output_in_tty(mocker: MockerFixture, sca_package_2_report):
-    # simulate a tty call by enforcing color
-    mocker.patch.dict(os.environ, {"FORCE_COLOR": "True"})
+    # simulate a tty call by enforcing color (patch can_colorize since termcolor caches it)
+    mocker.patch("termcolor.termcolor.can_colorize", return_value=True)
     mocker.patch("checkov.common.output.report.CHECKOV_RUN_SCA_PACKAGE_SCAN_V2", True)
 
     console_output = sca_package_2_report.print_console(False, False, None, None, False)

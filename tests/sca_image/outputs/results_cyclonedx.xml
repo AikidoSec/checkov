@@ -68,9 +68,9 @@
 		</tools>
 	</metadata>
 	<components>
-		<component bom-ref="pkg:oci/bridgecrewio/example/path/to/Dockerfile@sha256:123456" type="container">
+		<component bom-ref="pkg:oci/bridgecrewio/example/path/to/dockerfile@sha256:123456" type="container">
 			<name>bridgecrewio/example//sha256:123456</name>
-			<purl>pkg:oci/bridgecrewio/example/path/to/Dockerfile@sha256:123456</purl>
+			<purl>pkg:oci/bridgecrewio/example/path/to/dockerfile@sha256:123456</purl>
 		</component>
 		<component bom-ref="pkg:generic/bridgecrewio/example/path/to/Dockerfile/bzip2@1.0.8-5build1" type="library">
 			<name>bzip2</name>
@@ -114,7 +114,7 @@
 		</component>
 	</components>
 	<dependencies>
-		<dependency ref="pkg:oci/bridgecrewio/example/path/to/Dockerfile@sha256:123456"/>
+		<dependency ref="pkg:oci/bridgecrewio/example/path/to/dockerfile@sha256:123456"/>
 		<dependency ref="pkg:generic/bridgecrewio/example/path/to/Dockerfile/bzip2@1.0.8-5build1"/>
 		<dependency ref="pkg:generic/bridgecrewio/example/path/to/Dockerfile/libidn2@2.3.2-2build1"/>
 		<dependency ref="pkg:deb/bridgecrewio/example/path/to/Dockerfile/ubuntu/pcre2@10.39-3build1?distro=jammy"/>
