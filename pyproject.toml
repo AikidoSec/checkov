@@ -59,6 +59,7 @@ dependencies = [
     "spdx-tools<0.8.0",
     "license-expression==30.1.0",
     "asteval==1.0.6",
+    "setuptools",
 ]
 
 [project.optional-dependencies]
