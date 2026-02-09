@@ -64,7 +64,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=8,<9",
     "pytest-xdist",
     "pytest-asyncio",
     "pytest-cov",
