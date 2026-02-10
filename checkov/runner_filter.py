@@ -272,6 +272,11 @@ class RunnerFilter(object):
             try:
                 if any(re.search(full_regex_pattern, path) for path in file_origin_paths):
                     return True
+                # Also match relative paths (e.g. plan runner's scanned_file like "/tfplan1.json")
+                if root_folder:
+                    pattern_anchored = pattern if pattern.startswith("^") else f"^{pattern}"
+                    if any(re.search(pattern_anchored, path) for path in file_origin_paths):
+                        return True
             except Exception as exc:
                 logging.error(
                     "Invalid regex pattern has been supplied",

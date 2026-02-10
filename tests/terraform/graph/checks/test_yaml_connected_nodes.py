@@ -11,6 +11,13 @@ class TestYamlConnectedNodes(unittest.TestCase):
     def setUp(self) -> None:
         warnings.filterwarnings("ignore", category=ResourceWarning)
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        # Force NETWORKX so connected_node behavior is consistent (igraph does not populate it)
+        self._env_patch = mock.patch.dict("os.environ", {"CHECKOV_GRAPH_FRAMEWORK": "NETWORKX"}, clear=False)
+        self._env_patch.start()
+
+    def tearDown(self) -> None:
+        if hasattr(self, "_env_patch"):
+            self._env_patch.stop()
 
     def _find_check_by_connected_resource(self, checks, resource):
         """Find check by connected_node resource (order-independent)."""

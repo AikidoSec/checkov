@@ -62,6 +62,7 @@ jobs:
       - name: Unit tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHECKOV_GRAPH_FRAMEWORK: "NETWORKX"
         run: |
           pipenv run python -m pytest tests -q --tb=short --show-capture=no
 
