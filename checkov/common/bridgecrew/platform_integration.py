@@ -809,28 +809,44 @@ class BcPlatformIntegration:
         if self.skip_download is True:
             logging.debug("Skipping checkov mapping and guidelines API call")
             return
-        try:
-            headers: dict[str, Any] = {}
+        headers: dict[str, Any] = {}
+        self.setup_http_manager()
+        if not self.http:
+            logging.error("HTTP manager was not correctly created")
+            return
 
-            self.setup_http_manager()
-            if not self.http:
-                logging.error("HTTP manager was not correctly created")
-                return
-
-            request = self.http.request("GET", self.guidelines_api_url, headers=headers)  # type:ignore[no-untyped-call]
-            if request.status >= 300:
+        timeout = 10
+        max_attempts = 3
+        last_exc: Exception | None = None
+        for attempt in range(max_attempts):
+            try:
                 request = self.http.request(  # type:ignore[no-untyped-call]
-                    "GET",
-                    self.guidelines_api_url_backoff,
-                    headers=headers,
+                    "GET", self.guidelines_api_url, headers=headers, timeout=timeout
                 )
-
-            self.public_metadata_response = json.loads(request.data.decode("utf8"))
-            platform_type = PRISMA_PLATFORM if self.is_prisma_integration() else BRIDGECREW_PLATFORM
-            logging.debug(f"Got checkov mappings and guidelines from {platform_type} platform")
-        except Exception:
-            logging.warning(f"Failed to get the checkov mappings and guidelines from {self.guidelines_api_url}. Skips using BC_* IDs will not work.",
-                            exc_info=True)
+                if request.status >= 300:
+                    request = self.http.request(  # type:ignore[no-untyped-call]
+                        "GET",
+                        self.guidelines_api_url_backoff,
+                        headers=headers,
+                        timeout=timeout,
+                    )
+                if request.status < 300:
+                    self.public_metadata_response = json.loads(request.data.decode("utf8"))
+                    platform_type = PRISMA_PLATFORM if self.is_prisma_integration() else BRIDGECREW_PLATFORM
+                    logging.debug(f"Got checkov mappings and guidelines from {platform_type} platform")
+                    return
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                if attempt < max_attempts - 1:
+                    sleep(1 * (attempt + 1))
+                    continue
+        if last_exc is not None:
+            logging.warning(
+                f"Failed to get the checkov mappings and guidelines from {self.guidelines_api_url}. Skips using BC_* IDs will not work.",
+                exc_info=True,
+            )
 
     def onboarding(self) -> None:
         if not self.bc_api_key:
