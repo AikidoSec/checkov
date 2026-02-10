@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from checkov.common.output.cyclonedx_consts import SCA_CHECKTYPES
+
+logger = logging.getLogger(__name__)
 from checkov.common.util.http_utils import valid_url
 from checkov.version import version
 
@@ -59,8 +62,14 @@ class GitLabSast:
 
     def _create_vulnerabilities(self) -> list[dict[str, Any]]:
         vulnerabilities = []
-
+        logger.info("[CI_DEBUG GitLabSast._create_vulnerabilities] len(reports)=%s", len(self.reports))
         for report in self.reports:
+            logger.info(
+                "[CI_DEBUG GitLabSast._create_vulnerabilities] report check_type=%s len(failed_checks)=%s SCA=%s",
+                report.check_type, len(report.failed_checks), report.check_type in SCA_CHECKTYPES
+            )
+            for check in report.failed_checks:
+                logger.info("[CI_DEBUG GitLabSast._create_vulnerabilities]   check_id=%s resource=%s", check.check_id, getattr(check, 'resource', None))
             if report.check_type in SCA_CHECKTYPES:
                 for check in report.failed_checks:
                     vulnerability = None
@@ -74,7 +83,7 @@ class GitLabSast:
             else:
                 for check in report.failed_checks:
                     vulnerabilities.append(self._create_iac_vulnerability(record=check))
-
+        logger.info("[CI_DEBUG GitLabSast._create_vulnerabilities] total len(vulnerabilities)=%s", len(vulnerabilities))
         return vulnerabilities
 
     def _create_iac_vulnerability(self, record: Record) -> dict[str, Any]:

@@ -1,7 +1,11 @@
+import logging
+import os
 from operator import itemgetter
 from pathlib import Path
 
 from checkov.common.bridgecrew.check_type import CheckType
+
+logger = logging.getLogger(__name__)
 from checkov.common.models.enums import CheckResult
 from checkov.common.output.extra_resource import ExtraResource
 from checkov.common.output.gitlab_sast import GitLabSast
@@ -15,13 +19,26 @@ from checkov.terraform.runner import Runner
 def test_iac_output():
     # given
     test_file = Path(__file__).parent / "fixtures/main.tf"
+    logger.info("test_iac_output: test_file=%s abs=%s exists=%s cwd=%s", test_file, test_file.resolve(), test_file.exists(), os.getcwd())
+    print(f"[CI_DEBUG test_iac_output] test_file={test_file} abs={test_file.resolve()} exists={test_file.exists()} cwd={os.getcwd()}")
     report = Runner().run(
         root_folder="", files=[str(test_file)], runner_filter=RunnerFilter(checks=["CKV2_AWS_6", "CKV_AWS_18"])
     )
+    logger.info(
+        "test_iac_output: report.failed_checks=%s report.passed_checks=%s report.resources=%s",
+        len(report.failed_checks), len(report.passed_checks), report.resources
+    )
+    for r in report.failed_checks:
+        logger.info("  failed: check_id=%s resource=%s", r.check_id, r.resource)
 
     # when
+    logger.info("test_iac_output: report.check_type=%s len(failed_checks)=%s", getattr(report, 'check_type', None), len(report.failed_checks))
+    print(f"[CI_DEBUG test_iac_output] report.check_type={getattr(report, 'check_type', None)} len(failed_checks)={len(report.failed_checks)}")
     gitlab_sast = GitLabSast(reports=[report])
     output = gitlab_sast.sast_json
+    logger.info("test_iac_output: len(output[vulnerabilities])=%s vulnerabilities=%s", len(output["vulnerabilities"]), output["vulnerabilities"])
+    # CI_DEBUG: visible in CI when run with -s or --show-capture=all (default CI uses --show-capture=no)
+    print(f"[CI_DEBUG test_iac_output] len(vulnerabilities)={len(output['vulnerabilities'])} vulnerabilities={output['vulnerabilities']}")
 
     # then
     assert (

@@ -297,13 +297,19 @@ class Runner(BaseRunner[None]):
                 ))
 
             enriched_secrets_s3_path = bc_integration.persist_enriched_secrets(self.secrets_coordinator.get_secrets())
+            logging.info(
+                "[CI_DEBUG secrets.run] enriched_secrets_s3_path=%s (will_call_verify=%s) skip_invalid_secrets=%s len(failed_checks)=%s",
+                enriched_secrets_s3_path, bool(enriched_secrets_s3_path), getattr(runner_filter, 'skip_invalid_secrets', None), len(report.failed_checks)
+            )
             if enriched_secrets_s3_path:
                 self.verify_secrets(report, enriched_secrets_s3_path)
             logging.debug(f'report fail checks len: {len(report.failed_checks)}')
 
             self.cleanup_plugin_files(work_path, plugins_index, work_dir_obj)
             if runner_filter.skip_invalid_secrets:
+                logging.info("[CI_DEBUG secrets.run] calling _modify_invalid_secrets_check_result_to_skipped")
                 self._modify_invalid_secrets_check_result_to_skipped(report)
+            logging.info("[CI_DEBUG secrets.run] after modify: len(skipped_checks)=%s len(failed_checks)=%s", len(report.skipped_checks), len(report.failed_checks))
             return report
 
     def cleanup_plugin_files(
@@ -453,8 +459,10 @@ class Runner(BaseRunner[None]):
             return VerifySecretsResult.FAILURE
 
         verification_report = self.get_json_verification_report(verification_report_presigned_url)
+        logging.info("[CI_DEBUG secrets.verify_secrets] verification_report=%s", verification_report)
 
         if not verification_report:
+            logging.info("[CI_DEBUG secrets.verify_secrets] verification_report is None/empty, returning FAILURE")
             return VerifySecretsResult.FAILURE
 
         validation_status_by_check_id_and_resource = {}
@@ -467,8 +475,10 @@ class Runner(BaseRunner[None]):
             key = f'{validation_status_entity["violationId"]}_{validation_status_entity["resourceId"]}'
             validation_status_by_check_id_and_resource[key] = validation_status_entity['status']
 
-        logging.debug(
-            f'secrets verification api returned with {len(validation_status_by_check_id_and_resource.keys())} unique entries')
+        logging.info(
+            "[CI_DEBUG secrets.verify_secrets] validation_status_by_check_id_and_resource=%s",
+            validation_status_by_check_id_and_resource
+        )
 
         for secrets_record in report.failed_checks:
             if hasattr(secrets_record, "validation_status"):
@@ -478,6 +488,10 @@ class Runner(BaseRunner[None]):
                 if secrets_record.validation_status is None:
                     logging.debug(f'Failed to find verification status of {key}, setting by default to Unknown')
                     secrets_record.validation_status = ValidationStatus.UNAVAILABLE.value
+                logging.info(
+                    "[CI_DEBUG secrets.verify_secrets] failed_check key=%s -> validation_status=%s",
+                    key, secrets_record.validation_status
+                )
 
         return VerifySecretsResult.SUCCESS
 
@@ -509,9 +523,19 @@ class Runner(BaseRunner[None]):
     @staticmethod
     def _modify_invalid_secrets_check_result_to_skipped(report: Report) -> None:
         checks_indexes_moved_to_skipped: list[int] = []
-
+        logging.info(
+            "[CI_DEBUG secrets._modify_invalid_secrets] len(failed_checks)=%s failed_checks validation_statuses=%s",
+            len(report.failed_checks),
+            [(getattr(c, 'validation_status', None), getattr(c, 'resource', None)) for c in report.failed_checks]
+        )
         for check_index, check in enumerate(report.failed_checks):
-            if hasattr(check, 'validation_status') and check.validation_status == ValidationStatus.INVALID.value:
+            has_status = hasattr(check, 'validation_status')
+            is_invalid = has_status and check.validation_status == ValidationStatus.INVALID.value
+            logging.info(
+                "[CI_DEBUG secrets._modify_invalid_secrets] check_index=%s resource=%s has_validation_status=%s validation_status=%s is_invalid=%s",
+                check_index, getattr(check, 'resource', None), has_status, getattr(check, 'validation_status', None), is_invalid
+            )
+            if is_invalid:
                 check.check_result["result"] = CheckResult.SKIPPED
                 check.check_result["suppress_comment"] = "Skipped invalid secret"
                 report.skipped_checks.append(check)

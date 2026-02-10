@@ -1,8 +1,11 @@
+import logging
 import os
 
 import mock
 import responses
 from checkov.common.models.enums import CheckResult
+
+logger = logging.getLogger(__name__)
 
 
 @responses.activate
@@ -35,8 +38,18 @@ def test_runner_verify_secrets_skip_invalid_suppressed(mock_bc_integration, mock
     mock_bc_integration.bc_api_key = 'mock'
     runner.get_json_verification_report = lambda x: verified_report
 
-    report = runner.run(root_folder=valid_dir_path, external_checks_dir=None,
-                        runner_filter=RunnerFilter(framework=['secrets'], skip_checks=['Invalid']))
+    runner_filter = RunnerFilter(framework=['secrets'], skip_checks=['Invalid'])
+    logger.info("test_runner_verify_secrets_skip_invalid_suppressed: verified_report=%s skip_checks=%s skip_invalid_secrets=%s valid_dir_path=%s exists=%s listdir=%s",
+                verified_report, runner_filter.skip_checks, getattr(runner_filter, 'skip_invalid_secrets', None), valid_dir_path, os.path.exists(valid_dir_path), os.listdir(valid_dir_path) if os.path.exists(valid_dir_path) else None)
+    print(f"[CI_DEBUG test_runner_verify_secrets_skip_invalid_suppressed] skip_checks={runner_filter.skip_checks} skip_invalid_secrets={getattr(runner_filter, 'skip_invalid_secrets', None)} valid_dir_path={valid_dir_path} exists={os.path.exists(valid_dir_path)}")
+    report = runner.run(root_folder=valid_dir_path, external_checks_dir=None, runner_filter=runner_filter)
+    logger.info(
+        "test_runner_verify_secrets_skip_invalid_suppressed: len(skipped_checks)=%s len(failed_checks)=%s skipped=%s failed=%s",
+        len(report.skipped_checks), len(report.failed_checks),
+        [(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.skipped_checks],
+        [(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.failed_checks],
+    )
+    print(f"[CI_DEBUG test_runner_verify_secrets_skip_invalid_suppressed] skipped={len(report.skipped_checks)} failed={len(report.failed_checks)} skipped_checks={[(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.skipped_checks]} failed_checks={[(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.failed_checks]}")
 
     assert len(report.skipped_checks) == 1
     assert report.skipped_checks[0].file_path == rel_resource_path
@@ -83,8 +96,18 @@ def test_runner_verify_secrets_skip_all_no_effect(mock_bc_integration, mock_meta
 
     runner.get_json_verification_report = lambda x: verified_report
 
-    report = runner.run(root_folder=valid_dir_path, external_checks_dir=None,
-                        runner_filter=RunnerFilter(framework=['secrets'], skip_checks=['Invalid', 'Unknown', 'Valid']))
+    runner_filter = RunnerFilter(framework=['secrets'], skip_checks=['Invalid', 'Unknown', 'Valid'])
+    logger.info("test_runner_verify_secrets_skip_all_no_effect: verified_report=%s skip_checks=%s skip_invalid_secrets=%s valid_dir_path=%s exists=%s",
+                verified_report, runner_filter.skip_checks, getattr(runner_filter, 'skip_invalid_secrets', None), valid_dir_path, os.path.exists(valid_dir_path))
+    print(f"[CI_DEBUG test_runner_verify_secrets_skip_all_no_effect] skip_checks={runner_filter.skip_checks} skip_invalid_secrets={getattr(runner_filter, 'skip_invalid_secrets', None)} valid_dir_path={valid_dir_path}")
+    report = runner.run(root_folder=valid_dir_path, external_checks_dir=None, runner_filter=runner_filter)
+    logger.info(
+        "test_runner_verify_secrets_skip_all_no_effect: len(skipped_checks)=%s len(failed_checks)=%s skipped=%s failed=%s",
+        len(report.skipped_checks), len(report.failed_checks),
+        [(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.skipped_checks],
+        [(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.failed_checks],
+    )
+    print(f"[CI_DEBUG test_runner_verify_secrets_skip_all_no_effect] skipped={len(report.skipped_checks)} failed={len(report.failed_checks)} skipped_checks={[(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.skipped_checks]} failed_checks={[(c.file_path, c.resource, getattr(c, 'validation_status', None)) for c in report.failed_checks]}")
 
     assert len(report.skipped_checks) == 1
     assert report.skipped_checks[0].file_path == rel_resource_path
