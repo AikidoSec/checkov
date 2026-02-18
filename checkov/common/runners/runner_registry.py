@@ -29,7 +29,6 @@ from checkov.common.images.image_referencer import ImageReferencer
 from checkov.common.models.enums import ErrorStatus
 from checkov.common.output.csv import CSVSBOM
 from checkov.common.output.cyclonedx import CycloneDX
-from checkov.common.output.gitlab_sast import GitLabSast
 from checkov.common.output.report import Report, merge_reports
 from checkov.common.output.sarif import Sarif
 from checkov.common.output.spdx import SPDX
@@ -65,7 +64,6 @@ OUTPUT_CHOICES = [
     "json",
     "junitxml",
     "github_failed_only",
-    "gitlab_sast",
     "sarif",
     "spdx",
 ]
@@ -348,7 +346,6 @@ class RunnerRegistry:
         junit_reports = []
         github_reports = []
         cyclonedx_reports = []
-        gitlab_reports = []
         spdx_reports = []
         csv_sbom_report = CSVSBOM()
 
@@ -373,8 +370,6 @@ class RunnerRegistry:
                     sarif_reports.append(report)
                 if "cli" in config.output:
                     cli_reports.append(report)
-                if "gitlab_sast" in config.output:
-                    gitlab_reports.append(report)
             if not report.is_empty() or len(report.extra_resources):
                 if any(cyclonedx in config.output for cyclonedx in CYCLONEDX_OUTPUTS):
                     cyclonedx_reports.append(report)
@@ -520,16 +515,6 @@ class RunnerRegistry:
                 )
 
                 data_outputs[cyclonedx_format] = cyclonedx_output
-        if "gitlab_sast" in config.output:
-            gl_sast = GitLabSast(reports=gitlab_reports)
-
-            self._print_to_console(
-                output_formats=output_formats,
-                output_format="gitlab_sast",
-                output=json.dumps(gl_sast.sast_json, indent=4),
-            )
-
-            data_outputs["gitlab_sast"] = json.dumps(gl_sast.sast_json)
         if "spdx" in config.output:
             spdx = SPDX(repo_id=metadata_integration.bc_integration.repo_id, reports=spdx_reports)
             spdx_output = spdx.get_tag_value_output()
@@ -556,7 +541,6 @@ class RunnerRegistry:
             'junitxml': 'results_junitxml.xml',
             'cyclonedx': 'results_cyclonedx.xml',
             'cyclonedx_json': 'results_cyclonedx.json',
-            'gitlab_sast': 'results_gitlab_sast.json',
             'spdx': 'results_spdx.spdx',
         }
 
