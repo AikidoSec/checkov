@@ -37,6 +37,7 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ matrix.python }}
           pipenv run pip install websocket-client==1.9.0
+          pipenv run pip install "setuptools==81.0.0"
           pipenv install --dev -v
       - name: Unit tests
         env:
@@ -80,7 +81,9 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ matrix.python }}
           pipenv run pip install websocket-client==1.9.0
-          pipenv run pip install pytest pytest-xdist
+          pipenv run pip install "setuptools==81.0.0"
+          pipenv run pip install pytest==7.4.4 
+          pipenv run pip install pytest-xdist
           pipenv run python setup.py sdist bdist_wheel
           bash -c 'pipenv run pip install dist/checkov-*.whl'
       - name: Clone Terragoat - vulnerable terraform
@@ -134,7 +137,9 @@ jobs:
           pipenv --python ${{ matrix.python }}
           # 'py' package is used in 'pytest-benchmark', but 'pytest' removed it in their latest version         
           pipenv run pip install websocket-client==1.9.0
-          pipenv run pip install pytest pytest-benchmark py
+          pipenv run pip install "setuptools==81.0.0"
+          pipenv run pip install pytest==7.4.4
+          pipenv run pip install pytest-benchmark py
           pipenv run python setup.py sdist bdist_wheel
           bash -c 'pipenv run pip install dist/checkov-*.whl'
       - name: Clone terraform-aws-components
@@ -184,7 +189,9 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ env.PYTHON_VERSION }}  
           pipenv run pip install websocket-client==1.9.0
-          pipenv run pip install pytest pytest-xdist
+          pipenv run pip install "setuptools==81.0.0"
+          pipenv run pip install pytest==7.4.4
+          pipenv run pip install pytest-xdist
           pipenv run python setup.py sdist bdist_wheel
           bash -c 'pipenv run pip install dist/checkov-*.whl'
       - name: Run dogfood tests
