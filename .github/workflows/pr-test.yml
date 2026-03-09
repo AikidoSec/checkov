@@ -61,7 +61,6 @@ jobs:
           pipenv --python ${{ matrix.python }}
           pipenv run pip install websocket-client==1.9.0
           pipenv install --dev -v
-          pipenv run python -m pip install --upgrade pip "setuptools==81.0.0"
       - name: Check what dependencies are installed in the pipenv
         run: |
           pipenv run pip list
@@ -101,7 +100,6 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ matrix.python }}
           pipenv sync --dev
-          pipenv run python -m pip install --upgrade pip "setuptools==81.0.0"
           pipenv run pip install websocket-client==1.9.0
           pipenv run python setup.py sdist bdist_wheel
           pipenv run pip install dist/checkov-*.whl
@@ -153,7 +151,6 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ matrix.python }}
           pipenv sync --dev
-          pipenv run python -m pip install --upgrade pip "setuptools==81.0.0"
           pipenv run pip install websocket-client==1.9.0
           pipenv run pip install pytest-benchmark py
           pipenv run python setup.py sdist bdist_wheel
@@ -202,7 +199,6 @@ jobs:
           pipenv --rm || true
           pipenv --python ${{ matrix.python }}
           pipenv sync --dev
-          pipenv run pip install --upgrade pip "setuptools==81.0.0"
           pipenv run pip install websocket-client==1.9.0
           pipenv run python setup.py sdist bdist_wheel
           pipenv run pip install dist/checkov-*.whl
