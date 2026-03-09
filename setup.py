@@ -146,7 +146,7 @@ setup(
         's3transfer==0.16.0',
         'schema==0.7.8',
         'semantic-version==2.10.0',
-        'setuptools==82.0.0',
+        'setuptools==81.0.0',
         'six==1.17.0',
         'smmap==5.0.3',
         'sniffio==1.3.1',
