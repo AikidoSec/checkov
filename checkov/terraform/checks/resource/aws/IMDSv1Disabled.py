@@ -12,7 +12,7 @@ class IMDSv1Disabled(BaseResourceCheck):
         name = "Ensure Instance Metadata Service Version 1 is not enabled"
         id = "CKV_AWS_79"
         categories = [CheckCategories.GENERAL_SECURITY]
-        supported_resources = ['aws_instance', 'aws_launch_template', 'aws_launch_configuration']
+        supported_resources = ['*']
         super().__init__(
             name=name,
             id=id,
