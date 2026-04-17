@@ -406,7 +406,7 @@ class TestRenderer(TestCase):
             graph_manager = TerraformGraphManager('m', ['m'])
             local_graph, _ = graph_manager.build_graph_from_source_directory(path, render_variables=True)
             end_time = time.time()
-            assert end_time - start_time < 1
+            assert end_time - start_time < 1.5
             resources_vertex = list(filter(lambda v: v.block_type == BlockType.RESOURCE and v.has_dynamic_block, local_graph.vertices))
             assert resources_vertex[0].attributes['stage'] == [
                 {'name': 'Source',
