@@ -14,7 +14,6 @@ TEST_DIRNAME = os.path.dirname(os.path.realpath(__file__))
    {"db_connector": IgraphConnector}
 ])
 class TestGraphBuilder(TestCase):
-    @mock.patch.dict(os.environ, {"CHECKOV_NEW_TF_PARSER": "False"})
     def test_build_graph(self):
         resources_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "graph_files_test")
         source_files = ["pass_s3.tf", "variables.tf"]

@@ -178,7 +178,6 @@ def test_resources_flow():
     assert list(resources[0].config.get('aws_s3_bucket').keys())[0] == 'foreach_map[\"bucket_a\"]'
 
 
-@mock.patch.dict(os.environ, {"CHECKOV_NEW_TF_PARSER": "False"})
 def test_tf_definitions_and_breadcrumbs():
     from checkov.terraform.graph_builder.graph_to_tf_definitions import convert_graph_vertices_to_tf_definitions
     dir_name = 'foreach_examples/depend_resources'

@@ -56,7 +56,6 @@ class TestLocalGraph(TestCase):
             else:
                 edges_hash.append(edge_hash)
 
-    @mock.patch.dict(os.environ, {"CHECKOV_NEW_TF_PARSER": "False"})
     def test_set_variables_values_from_modules(self):
         resources_dir = os.path.realpath(os.path.join(TEST_DIRNAME,
                                                       '../resources/variable_rendering/render_from_module_vpc'))
