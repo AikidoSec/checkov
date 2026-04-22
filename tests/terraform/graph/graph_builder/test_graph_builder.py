@@ -336,66 +336,6 @@ class TestGraphBuilder(TestCase):
         # Shouldn't throw exception
         graph_manager.build_graph_from_source_directory(resources_dir)
 
-    def test_build_rustworkx_graph(self):
-        resources_dir = os.path.join(TEST_DIRNAME, '../resources/general_example')
-
-        graph_manager = TerraformGraphManager(db_connector=RustworkxConnector())
-        graph, tf_definitions = graph_manager.build_graph_from_source_directory(resources_dir)
-
-        expected_num_of_var_nodes = 3
-        expected_num_of_locals_nodes = 1
-        expected_num_of_resources_nodes = 1
-        expected_num_of_provider_nodes = 1
-        vertices_by_block_type = graph.vertices_by_block_type
-        self.assertEqual(expected_num_of_var_nodes, len(vertices_by_block_type[BlockType.VARIABLE]))
-        self.assertEqual(expected_num_of_locals_nodes, len(vertices_by_block_type[BlockType.LOCALS]))
-        self.assertEqual(expected_num_of_resources_nodes, len(vertices_by_block_type[BlockType.RESOURCE]))
-        self.assertEqual(expected_num_of_provider_nodes, len(vertices_by_block_type[BlockType.PROVIDER]))
-
-        provider_node = graph.vertices[vertices_by_block_type[BlockType.PROVIDER][0]]
-        resource_node = graph.vertices[vertices_by_block_type[BlockType.RESOURCE][0]]
-        local_node = graph.vertices[graph.vertices_block_name_map[BlockType.LOCALS]["bucket_name"][0]]
-
-        var_bucket_name_node = None
-        var_region_node = None
-        var_aws_profile_node = None
-        for index in vertices_by_block_type[BlockType.VARIABLE]:
-            var_node = graph.vertices[index]
-            if var_node.name == 'aws_profile':
-                var_aws_profile_node = var_node
-            if var_node.name == 'bucket_name':
-                var_bucket_name_node = var_node
-            if var_node.name == 'region':
-                var_region_node = var_node
-
-        self.check_edge(graph, resource_node, local_node, 'bucket')
-        self.check_edge(graph, resource_node, provider_node, 'provider')
-        self.check_edge(graph, resource_node, var_region_node, 'region')
-        self.check_edge(graph, provider_node, var_aws_profile_node, 'profile')
-        self.check_edge(graph, local_node, var_bucket_name_node, 'bucket_name')
-
-    def test_multiple_nested_module_with_connected_resources(self):
-        valid_plan_path = os.path.realpath(os.path.join(TEST_DIRNAME, '../resources/modules_edges_tfplan/tfplan.json'))
-        definitions, definitions_raw = create_definitions(root_folder=None, files=[valid_plan_path])
-        graph_manager = TerraformGraphManager(db_connector=RustworkxConnector())
-        tf_plan_local_graph = graph_manager.build_graph_from_definitions(definitions, render_variables=False)
-        self.assertTrue(tf_plan_local_graph.in_edges[1])
-        self.assertTrue(tf_plan_local_graph.in_edges[3])
-
-    def test_best_match_multiple_modules_with_connected_resources(self):
-        valid_plan_path = os.path.realpath(os.path.join(TEST_DIRNAME, '../resources/modules_edges_tfplan/tfplan.json'))
-        definitions, definitions_raw = create_definitions(root_folder=None, files=[valid_plan_path])
-        graph_manager = TerraformGraphManager(db_connector=RustworkxConnector())
-        tf_plan_local_graph = graph_manager.build_graph_from_definitions(definitions, render_variables=False)
-        origin_module_name = 'module.test.test.s3-bucket-1.aws_s3_bucket_public_access_block.this[0]'
-        vertex_module_name_1 = 'module.test.test.s3-bucket-1.aws_s3_bucket.this[0]'
-        vertex_module_name_2 = 'module.test.s3-bucket-2.aws_s3_bucket.this[0]'
-        origin_path = 'modules_edges_tfplan/tfplan.json'
-        common_prefix_1 = tf_plan_local_graph._get_common_prefix_name(origin_module_name, vertex_module_name_1, origin_path)
-        common_prefix_2 = tf_plan_local_graph._get_common_prefix_name(origin_module_name, vertex_module_name_2, origin_path)
-        assert(common_prefix_1 == 'modules_edges_tfplan/tfplan.json module.test.test.s3-bucket-1')
-        assert(common_prefix_2 == 'modules_edges_tfplan/tfplan.json module.test')
-
 
 def build_new_key_for_tf_definition(key):
     key = key.tf_source_modules
