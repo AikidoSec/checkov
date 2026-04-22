@@ -50,6 +50,9 @@ class TestYamlConnectedNodes(unittest.TestCase):
         assert failed_connected == []
         assert passed_connected == [
             ("/main.tf", "aws_s3_bucket_logging.example", [14, 19]),
+            ("/main.tf", "aws_s3_bucket_logging.count_logging", [30, 34]),
+            ("/main.tf", "aws_s3_bucket_logging.multi_count_logging[0]", [46, 51]),
+            ("/main.tf", "aws_s3_bucket_logging.multi_count_logging[1]", [46, 51]),
         ]
 
     def get_report(self, dir_name):

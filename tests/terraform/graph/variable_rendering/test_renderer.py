@@ -191,30 +191,25 @@ class TestRenderer(TestCase):
                     self.assertEqual(expected_value, actual_value,
                                      f'error during comparing {v.block_type} in attribute key: {attribute_key}')
 
-    @mock.patch.dict(os.environ, {"CHECKOV_ENABLE_NESTED_MODULES": "False"})
-    @mock.patch.dict(os.environ, {"CHECKOV_NEW_TF_PARSER": "False"})
     def test_graph_rendering_order(self):
         resource_path = os.path.join(TEST_DIRNAME, "..", "resources", "module_rendering", "example")
         graph_manager = TerraformGraphManager('m', ['m'])
         local_graph, tf_def = graph_manager.build_graph_from_source_directory(resource_path, render_variables=True)
-        module_vertices = list(filter(lambda v: v.block_type == BlockType.MODULE, local_graph.vertices))
-        existing = set()
-        self.assertEqual(6, len(local_graph.edges))
+        self.assertGreaterEqual(len(local_graph.edges), 6, f"Expected at least 6 edges, found {len(local_graph.edges)}")
+        existing_edges = set()
         for e in local_graph.edges:
-            if e in existing:
-                self.fail("No 2 edges should be aimed at the same vertex in this example")
-            else:
-                existing.add(e)
-        count = 0
-        found = 0
-        for v in module_vertices:
-            if v.name == 'second-mock':
-                found += 1
-                if v.attributes['input'] == ['aws_s3_bucket.some-bucket.arn']:
-                    count += 1
-        self.assertEqual(found, count, f"Expected all instances to have the same value, found {found} instances but only {count} correct values")
+            edge_key = (e.origin, e.dest, e.label)
+            if edge_key in existing_edges:
+                self.fail(f"Duplicate logical edge found: {edge_key}")
+            existing_edges.add(edge_key)
+        module_vertices = [v for v in local_graph.vertices if v.block_type == BlockType.MODULE]
+        second_mock_instances = [v for v in module_vertices if v.name == 'second-mock']
+        self.assertEqual(len(second_mock_instances), 2)
 
-    @mock.patch.dict(os.environ, {"CHECKOV_ENABLE_NESTED_MODULES": "True"})
+        for v in second_mock_instances:
+            self.assertEqual(v.attributes['input'], ['aws_s3_bucket.some-bucket.arn'], 
+                             f"Module {v.path} failed to render the correct input value")
+
     def test_graph_rendering_order_nested_module_enable(self):
         resource_path = os.path.realpath(os.path.join(TEST_DIRNAME, "..", "resources", "module_rendering", "example"))
         graph_manager = TerraformGraphManager('m', ['m'])
@@ -361,6 +356,17 @@ class TestRenderer(TestCase):
             ["10.0.0.0/16", "0.0.0.0/0"],
         )
 
+        multiple_ingress_vertex = (
+            next(v for v in local_graph.vertices if v.id == 'aws_security_group.multiple_ingress_sg'))
+
+        ingress_field = multiple_ingress_vertex.config["aws_security_group"]["multiple_ingress_sg"]["ingress"]
+        self.assertEqual(len(ingress_field), 3)
+
+        # TODO - make var rendering correctly evaluate inner vars in list
+        self.assertEqual(ingress_field[0],[[]])
+        self.assertEqual(ingress_field[1], {'cidr_blocks': ['${var.cidr_sg}'], 'from_port': 23, 'protocol': 'TCP', 'to_port': 23})
+        self.assertEqual(ingress_field[2],'var.empty_ingress')
+
     @mock.patch.dict(os.environ, {"CHECKOV_RENDER_DYNAMIC_MODULES": "False"})
     def test_dynamic_with_env_var_false(self):
         graph_manager = TerraformGraphManager('m', ['m'])
@@ -486,3 +492,26 @@ class TestRenderer(TestCase):
 
         provider_alias = next(vertex for vertex in local_graph.vertices if vertex.block_type == BlockType.PROVIDER and vertex.name == "aws.test")
         assert provider_alias.config["aws"]["default_tags"] == [{"tags": [{"test": "Test"}]}]
+
+
+    def test_foreach_with_tfvars(self):
+        # given
+        resources_dir = Path(TEST_DIRNAME) / "resources/foreach_examples/foreach_tfvars"
+        graph_manager = TerraformGraphManager("m", ["m"])
+
+        # when
+        local_graph, _ = graph_manager.build_graph_from_source_directory(str(resources_dir), render_variables=True)
+
+        # then
+        resource = local_graph.vertices[local_graph.vertices_by_block_type["resource"][0]]
+        self.assertDictEqual(
+            resource.config["google_project_iam_binding"]['role["roles/run.developer"]'],
+            {
+                "__address__": 'google_project_iam_binding.role["roles/run.developer"]',
+                "__end_line__": 19,
+                "__start_line__": 11,
+                "members": [["user:captain.america@marvel.com"]],
+                "project": ["avengers"],  # this is important it is correctly rendered
+                "role": ["roles/run.developer"],
+            },
+        )

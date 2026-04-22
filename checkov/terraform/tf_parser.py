@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from collections import defaultdict
@@ -7,13 +8,14 @@ from pathlib import Path
 from typing import Optional, Dict, Mapping, Set, Tuple, Callable, Any, List, cast, TYPE_CHECKING
 
 import deep_merge
+import hcl2
 
 from checkov.common.runners.base_runner import filter_ignored_paths, IGNORE_HIDDEN_DIRECTORY_ENV
-from checkov.common.typing import TFDefinitionKeyType
 from checkov.common.util.consts import DEFAULT_EXTERNAL_MODULES_DIR, RESOLVED_MODULE_ENTRY_NAME
 from checkov.common.util.data_structures_utils import pickle_deepcopy
 from checkov.common.util.type_forcers import force_list
 from checkov.common.variables.context import EvaluationContext
+from checkov.terraform import validate_malformed_definitions, clean_bad_definitions
 from checkov.terraform.graph_builder.graph_components.block_types import BlockType
 from checkov.terraform.graph_builder.graph_components.module import Module
 from checkov.terraform.module_loading.content import ModuleContent
@@ -21,9 +23,9 @@ from checkov.terraform.module_loading.module_finder import load_tf_modules
 from checkov.terraform.module_loading.registry import module_loader_registry as default_ml_registry, \
     ModuleLoaderRegistry
 from checkov.common.util.parser_utils import is_acceptable_module_param
-from checkov.terraform.modules.module_utils import load_or_die_quietly, safe_index, \
+from checkov.terraform.modules.module_utils import safe_index, \
     remove_module_dependency_from_path, \
-    clean_parser_types, serialize_definitions
+    clean_parser_types, serialize_definitions, _Hcl2Payload
 from checkov.terraform.modules.module_objects import TFModule, TFDefinitionKey
 
 if TYPE_CHECKING:
@@ -44,10 +46,11 @@ class TFParser:
         self.external_modules_source_map: Dict[Tuple[str, str], str] = {}
         self.module_address_map: Dict[Tuple[str, str], str] = {}
         self.loaded_files_map: dict[str, dict[str, list[dict[str, Any]]] | None] = {}
-        self.external_variables_data: list[tuple[str, Any, str]] = []
+        self.external_vars: dict[str, dict[str, tuple[Any, str]]] = {}
+        self.temp_tf_definition: dict[str, Any] = {}
 
     def _init(self, directory: str,
-              out_evaluations_context: Dict[str, Dict[str, EvaluationContext]] | None,
+              out_evaluations_context: Dict[TFDefinitionKey, Dict[str, EvaluationContext]] | None,
               out_parsing_errors: Dict[str, Exception] | None,
               env_vars: Mapping[str, str] | None,
               download_external_modules: bool,
@@ -80,7 +83,7 @@ class TFParser:
     def parse_directory(
         self,
         directory: str,
-        out_evaluations_context: Dict[str, Dict[str, EvaluationContext]] | None = None,
+        out_evaluations_context: Dict[TFDefinitionKey, Dict[str, EvaluationContext]] | None = None,
         out_parsing_errors: Dict[str, Exception] | None = None,
         env_vars: Mapping[str, str] | None = None,
         download_external_modules: bool = False,
@@ -158,7 +161,6 @@ class TFParser:
             if not data:
                 continue
             self.out_definitions[TFDefinitionKey(file)] = data
-            self.add_external_vars_from_data(data, file)
 
         force_final_module_load = False
         for i in range(0, 10):
@@ -176,25 +178,25 @@ class TFParser:
                 force_final_module_load = True
 
     def _load_files(
-        self,
-        files: list[os.DirEntry[str]],
+            self,
+            files: list[str],
     ) -> list[tuple[str, dict[str, list[dict[str, Any]]] | None]]:
         def _load_file(
-            file: os.DirEntry[str]
+                file: str
         ) -> tuple[tuple[str, dict[str, list[dict[str, Any]]] | None], dict[str, Exception]]:
             parsing_errors: dict[str, Exception] = {}
             result = load_or_die_quietly(file, parsing_errors)
             for path, e in parsing_errors.items():
                 parsing_errors[path] = e
 
-            return (file.path, result), parsing_errors
+            return (file, result), parsing_errors
 
         files_to_data: list[tuple[str, dict[str, list[dict[str, Any]]] | None]] = []
         files_to_parse = []
         for file in files:
-            data = self.loaded_files_map.get(file.path)
+            data = self.loaded_files_map.get(file)
             if data:
-                files_to_data.append((file.path, data))
+                files_to_data.append((file, data))
             else:
                 files_to_parse.append(file)
 
@@ -443,11 +445,11 @@ class TFParser:
     ) -> Tuple[Module, Dict[TFDefinitionKey, Dict[str, Any]]]:
         module = self.get_new_module(
             source_dir=source_dir,
-            module_address_map=self.module_address_map,
             external_modules_source_map=self.external_modules_source_map,
         )
         self.add_tfvars(module, source)
         copy_of_tf_definitions = pickle_deepcopy(tf_definitions)
+        module.temp_tf_definition = tf_definitions  # type:ignore  # will be TFDefinitionKey and not string
         for file_path, blocks in copy_of_tf_definitions.items():
             for block_type in blocks:
                 try:
@@ -465,10 +467,9 @@ class TFParser:
     ) -> tuple[Module, list[dict[TFDefinitionKey, dict[str, Any]]]]:
         module = self.get_new_module(
             source_dir=source_dir,
-            module_address_map=self.module_address_map,
             external_modules_source_map=self.external_modules_source_map,
         )
-        self.add_tfvars_with_source_dir(module, source, source_dir)
+        self.add_tfvars(module, source)
         copy_of_tf_definitions = pickle_deepcopy(tf_definitions)
         for tf_def in copy_of_tf_definitions:
             for file_path, blocks in tf_def.items():
@@ -502,36 +503,27 @@ class TFParser:
         return get_tf_definition_object_from_module_dependency(key, nested_key, module_name)
 
     def add_tfvars(self, module: Module, source: str) -> None:
-        if not self.external_variables_data:
+        if not self.external_vars:
             return
-        for (var_name, default, path) in self.external_variables_data:
-            if ".tfvars" in path:
-                block = [{var_name: {"default": default}}]
+
+        for load_dir, i in self.external_vars.items():
+            for name, (default, path) in i.items():
+                block = [{name: {'default': default, 'load_dir': load_dir}}]
                 module.add_blocks(BlockType.TF_VARIABLE, block, path, source)
 
-    def add_tfvars_with_source_dir(self, module: Module, source: str, source_dir: str) -> None:
-        if not self.external_variables_data:
-            return
-        for var_name, default, path in self.external_variables_data:
-            if ".tfvars" in path:
-                if Path(source_dir) in Path(path).parents:
-                    block = [{var_name: {"default": default}}]
-                    module.add_blocks(BlockType.TF_VARIABLE, block, path, source)
-
-    def get_dirname(self, path: TFDefinitionKeyType) -> str:
-        if isinstance(path, TFDefinitionKey):
-            path = path.file_path
-        dirname_path = self.dirname_cache.get(path)
+    def get_dirname(self, path: TFDefinitionKey) -> str:
+        file_path = path.file_path
+        dirname_path = self.dirname_cache.get(file_path)
         if not dirname_path:
-            dirname_path = os.path.dirname(path)
-            self.dirname_cache[path] = dirname_path
+            dirname_path = os.path.dirname(file_path)
+            self.dirname_cache[file_path] = dirname_path
         return dirname_path
 
     def should_loaded_file(self, file: TFDefinitionKey, root_dir: str) -> bool:
         return not self.get_dirname(file) != root_dir
 
     def get_module_source(
-        self, module_call_data: dict[str, Any], module_call_name: str, file: TFDefinitionKeyType
+        self, module_call_data: dict[str, Any], module_call_name: str, file: TFDefinitionKey
     ) -> Optional[str]:
         source = module_call_data.get("source")
         if not source or not isinstance(source, list):
@@ -541,35 +533,25 @@ class TFParser:
             return None
 
         if source.startswith("./") or source.startswith("../"):
-            file_to_load = file.file_path if isinstance(file, TFDefinitionKey) else file
+            file_to_load = file.file_path
             source = os.path.normpath(os.path.join(os.path.dirname(remove_module_dependency_from_path(file_to_load)), source))
         return source
 
-    def add_external_vars_from_data(self, data: dict[str, Any], file: str) -> None:
-        var_blocks = data.get("variable")
-        if var_blocks and isinstance(var_blocks, list):
-            for var_block in var_blocks:
-                if not isinstance(var_block, dict):
-                    continue
-                for var_name, var_definition in var_block.items():
-                    if not isinstance(var_definition, dict):
-                        continue
-
-                    default_value = var_definition.get("default")
-                    if default_value is not None and isinstance(default_value, list):
-                        self.external_variables_data.append((var_name, default_value[0], file))
-
     def handle_variables(
-        self,
-        dir_contents: list[os.DirEntry[str]],
-        vars_files: None | list[str],
-        specified_vars: Mapping[str, str] | None,
-    ) -> list[os.DirEntry[str]]:
+            self,
+            dir_contents: list[os.DirEntry[str]],
+            vars_files: None | list[str],
+            specified_vars: Mapping[str, str] | None,
+    ) -> list[str]:
         tf_files_to_load = []
-        hcl_tfvars: Optional[os.DirEntry[str]] = None
-        json_tfvars: Optional[os.DirEntry[str]] = None
-        auto_vars_files: List[os.DirEntry[str]] = []
-        explicit_var_files: List[os.DirEntry[str]] = []
+        hcl_tfvars: Optional[str] = None
+        json_tfvars: Optional[str] = None
+        auto_vars_files: List[str] = []
+        external_vars: dict[str, tuple[Any, str]] = {}
+
+        if not dir_contents:
+            return []
+
         for file in dir_contents:
             try:
                 if not file.is_file():
@@ -578,44 +560,56 @@ class TFParser:
                 continue
 
             if file.name == "terraform.tfvars.json":
-                json_tfvars = file
+                json_tfvars = file.path
             elif file.name == "terraform.tfvars":
-                hcl_tfvars = file
+                hcl_tfvars = file.path
             elif file.name.endswith(".auto.tfvars.json") or file.name.endswith(".auto.tfvars"):
-                auto_vars_files.append(file)
-            elif vars_files and file.path in vars_files:
-                explicit_var_files.append(file)
+                auto_vars_files.append(file.path)
             elif file.name.endswith(".tf") or file.name.endswith('.hcl'):  # TODO: add support for .tf.json
-                tf_files_to_load.append(file)
+                tf_files_to_load.append(file.path)
 
+        # Terraform Variable Definition Precedence
+        # 1. Environment vars
         for key, value in self.env_vars.items():
-            if not key.startswith("TF_VAR_"):
-                continue
-            self.external_variables_data.append((key[7:], value, f"env:{key}"))
+            if key.startswith('TF_VAR_'):
+                external_vars[key[7:]] = (value, f'env:{key}')
+
+        # 2. terraform.tfvars
         if hcl_tfvars:  # terraform.tfvars
             data = load_or_die_quietly(hcl_tfvars, self.out_parsing_errors, clean_definitions=False)
             if data:
-                self.external_variables_data.extend([(k, safe_index(v, 0), hcl_tfvars.path) for k, v in data.items()])
+                for k, v in data.items():
+                    external_vars[k] = (safe_index(v, 0), hcl_tfvars)
+
+        # 3. terraform.tfvars.json
         if json_tfvars:  # terraform.tfvars.json
             data = load_or_die_quietly(json_tfvars, self.out_parsing_errors)
             if data:
-                self.external_variables_data.extend([(k, v, json_tfvars.path) for k, v in data.items()])
+                for k, v in data.items():
+                    external_vars[k] = (v, json_tfvars)
 
+        # 4. *.auto.tfvars / *.auto.tfvars.json
         auto_var_files_to_data = self._load_files(auto_vars_files)
         for var_file, data in sorted(auto_var_files_to_data, key=lambda x: x[0]):
             if data:
-                self.external_variables_data.extend([(k, v, var_file) for k, v in data.items()])
+                for k, v in data.items():
+                    external_vars[k] = (v, var_file)
 
-        explicit_var_files_to_data = self._load_files(explicit_var_files)
-        # it's possible that os.scandir returned the var files in a different order than they were specified
+        # 5. --var-file arguments
         if vars_files:
-            for var_file, data in sorted(explicit_var_files_to_data, key=lambda x: vars_files.index(x[0])):  # type:ignore[union-attr]  # false-positive
+            for var_file, data in self._load_files(vars_files):
                 if data:
-                    self.external_variables_data.extend([(k, v, var_file) for k, v in data.items()])
+                    for k, v in data.items():
+                        external_vars[k] = (v, var_file)
 
-        if specified_vars:  # specified
-            self.external_variables_data.extend([(k, v, "manual specification") for k, v in specified_vars.items()])
+        # Prevent specified vars from being overridden by tfvars
+        if specified_vars:
+            for k in specified_vars.keys():
+                if k in external_vars:
+                    del external_vars[k]
 
+        if external_vars:
+            self.external_vars[os.path.dirname(dir_contents[0].path)] = external_vars
         return tf_files_to_load
 
     @staticmethod
@@ -662,12 +656,10 @@ class TFParser:
     @staticmethod
     def get_new_module(
             source_dir: str,
-            module_address_map: dict[tuple[str, str], str],
             external_modules_source_map: dict[tuple[str, str], str],
     ) -> Module:
         return Module(
             source_dir=source_dir,
-            module_address_map=module_address_map,
             external_modules_source_map=external_modules_source_map,
         )
 
@@ -684,3 +676,33 @@ def get_tf_definition_object_from_module_dependency(
     if not is_nested_object(module_dependency):
         return TFDefinitionKey(path.file_path, TFModule(path=module_dependency.file_path, name=module_dependency_name))
     return TFDefinitionKey(path.file_path, TFModule(path=module_dependency.file_path, name=module_dependency_name, nested_tf_module=module_dependency.tf_source_modules))
+
+
+def load_or_die_quietly(
+    file: str | Path | os.DirEntry[str], parsing_errors: dict[str, Exception], clean_definitions: bool = True
+) -> Optional[_Hcl2Payload]:
+    """
+Load JSON or HCL, depending on filename.
+    :return: None if the file can't be loaded
+    """
+
+    file_path = os.fspath(file)
+    file_name = os.path.basename(file_path)
+
+    try:
+        logging.debug(f"Parsing {file_path}")
+
+        with open(file_path, "r", encoding="utf-8-sig") as f:
+            if file_name.endswith(".json"):
+                return cast("_Hcl2Payload", json.load(f))
+            else:
+                raw_data = hcl2.load(f)
+                non_malformed_definitions = validate_malformed_definitions(raw_data)
+                if clean_definitions:
+                    return clean_bad_definitions(non_malformed_definitions)
+                else:
+                    return non_malformed_definitions
+    except Exception as e:
+        logging.debug(f'failed while parsing file {file_path}', exc_info=True)
+        parsing_errors[file_path] = e
+        return None

@@ -110,11 +110,9 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                 origin_vertex.block_type == BlockType.VARIABLE
                 and destination_vertex.block_type == BlockType.TF_VARIABLE
             ):
-                # evaluate the last specified variable based on .tfvars precedence
-                destination_vertex = list(filter(lambda v: v.block_type == BlockType.TF_VARIABLE, map(lambda e: self.local_graph.vertices[e.dest], edge_list)))[-1]
                 self.update_evaluated_value(
                     changed_attribute_key=edge.label,
-                    changed_attribute_value=destination_vertex.attributes["default"],
+                    changed_attribute_value=destination_vertex.attributes['default'],
                     vertex=edge.origin,
                     change_origin_id=edge.dest,
                     attribute_at_dest=edge.label,
@@ -235,6 +233,8 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                     copy_of_attribute_path[i] = remove_index_pattern_from_str(copy_of_attribute_path[i])
                     name = ".".join(copy_of_attribute_path[: i + 1])
                     if vertex_attributes[CustomAttributes.BLOCK_NAME] == name:
+                        return attribute_path, vertex_reference.origin_value
+                    elif vertex_attributes[CustomAttributes.BLOCK_NAME] == name.replace(LEFT_BRACKET_WITH_QUOTATION, LEFT_BRACKET).replace(RIGHT_BRACKET_WITH_QUOTATION, RIGHT_BRACKET):
                         return attribute_path, vertex_reference.origin_value
             elif block_type == BlockType.MODULE:
                 copy_of_attribute_path.reverse()

@@ -5,9 +5,11 @@ from unittest import TestCase, mock
 from checkov.common.graph.db_connectors.networkx.networkx_db_connector import NetworkxConnector
 from checkov.terraform.graph_builder.graph_components.block_types import BlockType
 from checkov.terraform.graph_builder.graph_to_tf_definitions import convert_graph_vertices_to_tf_definitions
+from checkov.terraform.graph_builder.local_graph import TerraformLocalGraph
 from checkov.terraform.graph_manager import TerraformGraphManager
 from checkov.common.graph.graph_builder import CustomAttributes
 from checkov.terraform.modules.module_utils import external_modules_download_path
+from checkov.terraform.plan_utils import create_definitions
 
 TEST_DIRNAME = os.path.dirname(os.path.realpath(__file__))
 
