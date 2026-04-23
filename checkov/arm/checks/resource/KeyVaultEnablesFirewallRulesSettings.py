@@ -16,7 +16,7 @@ class KeyVaultEnablesFirewallRulesSettings(BaseResourceValueCheck):
     def get_expected_value(self):
         return "Deny"
 
-   def scan_resource_conf(self, conf: dict[str, Any]) -> CheckResult:
+    def scan_resource_conf(self, conf: dict[str, Any]) -> CheckResult:
         properties = conf.get("properties")
         if not properties or not isinstance(properties, dict):
             return super().scan_resource_conf(conf)

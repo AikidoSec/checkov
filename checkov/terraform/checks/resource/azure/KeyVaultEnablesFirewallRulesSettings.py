@@ -18,6 +18,7 @@ class KeyVaultEnablesFirewallRulesSettings(BaseResourceValueCheck):
         return "Deny"
 
     def scan_resource_conf(self, conf: dict[str, list[Any]]) -> CheckResult:
+        public_network_access = conf.get("public_network_access_enabled")
         if not public_network_access or not isinstance(public_network_access, list):
             return super().scan_resource_conf(conf)
         
