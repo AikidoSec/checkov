@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from checkov.terraform.checks.resource.base_resource_value_check import BaseResourceValueCheck
 from checkov.common.models.enums import CheckResult, CheckCategories
@@ -17,13 +17,12 @@ class KeyVaultEnablesFirewallRulesSettings(BaseResourceValueCheck):
     def get_expected_value(self):
         return "Deny"
 
-    def scan_resource_conf(self, conf: Dict[str, List[Any]]) -> CheckResult:
+    def scan_resource_conf(self, conf: dict[str, list[Any]]) -> CheckResult:
         public_network_access = conf.get("public_network_access_enabled")
-        if public_network_access and isinstance(public_network_access, List):
+        if public_network_access and isinstance(public_network_access, list):
             if public_network_access[0] is False:
                 return CheckResult.PASSED
 
-        # If public access is NOT false, fall back to Checkov's default behavior.
         return super().scan_resource_conf(conf)
 
 check = KeyVaultEnablesFirewallRulesSettings()
