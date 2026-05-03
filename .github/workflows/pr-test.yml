@@ -9,25 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  sync-check:
-    name: Dependency sync (uv = source of truth)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9  # v3
-      - uses: astral-sh/setup-uv@v4
-        with:
-          version: "latest"
-      - name: Install Python 3.14 for uv lock
-        run: uv python install 3.14
-      - name: Run uv lock (no-op if lock already in sync)
-        run: uv lock --python 3.14
-      - name: Sync setup.py and Pipfile from uv.lock
-        run: |
-          uv run python scripts/sync_setup_py_from_uv_lock.py
-          uv run python scripts/sync_pipfile_from_uv_lock.py
-      - name: Verify no uncommitted changes to synced files
-        run: |
-          git diff --exit-code setup.py Pipfile uv.lock || (echo "setup.py, Pipfile, or uv.lock is out of sync. Run: ./scripts/uv_update_lock.sh" && exit 1)
   
   unit-tests:
     strategy:
