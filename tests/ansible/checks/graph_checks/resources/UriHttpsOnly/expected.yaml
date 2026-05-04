@@ -5,3 +5,4 @@ fail:
   - "tasks.uri.http"
 evaluated_keys:
   - "url"
+  - "unix_socket"
