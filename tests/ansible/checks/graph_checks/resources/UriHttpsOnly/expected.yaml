@@ -1,6 +1,8 @@
 pass:
   - "tasks.ansible.builtin.uri.https"
+  - "tasks.ansible.builtin.uri.unixsocket"
 fail:
   - "tasks.uri.http"
 evaluated_keys:
   - "url"
+  - "unix_socket"
