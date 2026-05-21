@@ -6,3 +6,8 @@
     - name: https
       ansible.builtin.uri:
         url: https://www.example.com
+    - name: unixsocket
+      ansible.builtin.uri:
+        unix_socket: /var/run/unit/control.sock
+        url: http://localhost/config/applications/foo
+        method: PUT
