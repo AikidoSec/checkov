@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Gateway Load Balancer listener without Protocol (GENEVE forwarding only)
+Resources:
+  GatewayLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: PL-Inspection-GWLB
+      Type: gateway
+      Subnets:
+        - subnet-12345678
+        - subnet-87654321
+
+  GatewayLoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: PL-Firewall-TargetGroup
+      Protocol: TCP
+      Port: 6081
+      VpcId: vpc-12345678
+
+  GatewayLoadBalancerListenerPASSED:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref GatewayLoadBalancer
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GatewayLoadBalancerTargetGroup

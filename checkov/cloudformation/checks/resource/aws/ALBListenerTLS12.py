@@ -35,6 +35,7 @@ class ALBListenerTLS12(BaseResourceCheck):
 
         if 'Properties' in conf.keys():
             if 'Protocol' in conf['Properties'].keys():
+                
                 # Check SslPolicy only if protocol is HTTPS (ALB) or TLS (NLB).
                 # Other protocols are not interesting within the context of this check.
                 protocol = conf['Properties']['Protocol']
@@ -53,6 +54,9 @@ class ALBListenerTLS12(BaseResourceCheck):
                     for redirect in force_list(redirects):
                         if redirect.get("Protocol", []) == 'HTTPS':
                             return CheckResult.PASSED
+            else:
+                # Gateway Load Balancer listeners do not support Protocol or SslPolicy (GENEVE forwarding only).
+                return CheckResult.PASSED
         return CheckResult.FAILED
 
 
