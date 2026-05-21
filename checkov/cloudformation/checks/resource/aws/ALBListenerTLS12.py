@@ -45,18 +45,28 @@ class ALBListenerTLS12(BaseResourceCheck):
                             return CheckResult.PASSED
                     return CheckResult.FAILED
                 elif conf['Properties']['Protocol'] in ('TCP', 'UDP', 'TCP_UDP'):
-                    return CheckResult.PASSED
-                actions = conf['Properties'].get('DefaultActions', [])
-                for action in actions:
-                    if action in ConditionFunctions.__dict__.values() or action in IntrinsicFunctions.__dict__.values():
-                        return CheckResult.UNKNOWN
-                    redirects = action.get("RedirectConfig", [])
-                    for redirect in force_list(redirects):
-                        if redirect.get("Protocol", []) == 'HTTPS':
-                            return CheckResult.PASSED
-            else:
+            if 'Protocol' not in conf['Properties'].keys():
                 # Gateway Load Balancer listeners do not support Protocol or SslPolicy (GENEVE forwarding only).
                 return CheckResult.PASSED
+            
+            # Check SslPolicy only if protocol is HTTPS (ALB) or TLS (NLB).
+            # Other protocols are not interesting within the context of this check.
+            protocol = conf['Properties']['Protocol']
+            if protocol in ('HTTPS', 'TLS'):
+                if 'SslPolicy' in conf['Properties'].keys():
+                    if isinstance(conf['Properties']['SslPolicy'], str) and conf['Properties']['SslPolicy'].startswith(supported_policy_prefixes[protocol]):
+                        return CheckResult.PASSED
+                return CheckResult.FAILED
+            elif conf['Properties']['Protocol'] in ('TCP', 'UDP', 'TCP_UDP'):
+                return CheckResult.PASSED
+            actions = conf['Properties'].get('DefaultActions', [])
+            for action in actions:
+                if action in ConditionFunctions.__dict__.values() or action in IntrinsicFunctions.__dict__.values():
+                    return CheckResult.UNKNOWN
+                redirects = action.get("RedirectConfig", [])
+                for redirect in force_list(redirects):
+                    if redirect.get("Protocol", []) == 'HTTPS':
+                        return CheckResult.PASSED
         return CheckResult.FAILED
 
 
