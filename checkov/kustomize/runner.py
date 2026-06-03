@@ -389,61 +389,48 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         # We need parse some of the Kustomization.yaml files to work out which
         # This is so we can provide "Environment" information back to the user as part of the checked resource name/description.
         # TODO: We could also add a --kustomize-environment option so we only scan certain overlay names (prod, test etc) useful in CI.
-        yaml_path = os.path.join(kustomize_dir, "kustomization.yaml")
-        yml_path = os.path.join(kustomize_dir, "kustomization.yml")
-        if os.path.isfile(yml_path):
-            kustomization_path = yml_path
-        elif os.path.isfile(yaml_path):
-            kustomization_path = yaml_path
-        else:
+        file_content = _load_kustomization_content(kustomize_dir)
+        if not file_content:
             return {}
 
-        with open(kustomization_path, 'r') as kustomization_file:
-            metadata: dict[str, Any] = {}
-            try:
-                file_content = yaml.safe_load(kustomization_file)
-            except yaml.YAMLError:
-                logging.info(f"Failed to load Kustomize metadata from {kustomization_path}.", exc_info=True)
-                return {}
+        kustomization_path = _kustomization_file_path(kustomize_dir)
+        metadata: dict[str, Any] = {}
 
-            if not isinstance(file_content, dict):
-                return {}
+        if 'resources' in file_content:
+            resources = file_content['resources']
 
-            if 'resources' in file_content:
-                resources = file_content['resources']
-
-                # We can differentiate between "overlays" and "bases" based on if the `resources` refers to a directory,
-                # which represents an "overlay", or only files which represents a "base"
-                resources_representing_directories = [r for r in resources if pathlib.Path(r).suffix == '']
-                if resources_representing_directories:
-                    logging.debug(
-                        f"Kustomization contains resources: section with directories. Likely an overlay/env."
-                        f" {kustomization_path}")
-                    metadata['type'] = "overlay"
-                    metadata['referenced_bases'] = resources_representing_directories
-                else:
-                    logging.debug(f"Kustomization contains resources: section with only files (no dirs). Likley a base."
-                                  f" {kustomization_path}")
-                    metadata['type'] = "base"
-
-            elif 'patchesStrategicMerge' in file_content:
-                logging.debug(f"Kustomization contains patchesStrategicMerge: section. Likley an overlay/env. {kustomization_path}")
+            # We can differentiate between "overlays" and "bases" based on if the `resources` refers to a directory,
+            # which represents an "overlay", or only files which represents a "base"
+            resources_representing_directories = [r for r in resources if pathlib.Path(r).suffix == '']
+            if resources_representing_directories:
+                logging.debug(
+                    f"Kustomization contains resources: section with directories. Likely an overlay/env."
+                    f" {kustomization_path}")
                 metadata['type'] = "overlay"
-                if 'bases' in file_content:
-                    metadata['referenced_bases'] = file_content['bases']
+                metadata['referenced_bases'] = resources_representing_directories
+            else:
+                logging.debug(f"Kustomization contains resources: section with only files (no dirs). Likley a base."
+                              f" {kustomization_path}")
+                metadata['type'] = "base"
 
-            elif 'bases' in file_content:
-                logging.debug(f"Kustomization contains bases: section. Likley an overlay/env. {kustomization_path}")
-                metadata['type'] = "overlay"
+        elif 'patchesStrategicMerge' in file_content:
+            logging.debug(f"Kustomization contains patchesStrategicMerge: section. Likley an overlay/env. {kustomization_path}")
+            metadata['type'] = "overlay"
+            if 'bases' in file_content:
                 metadata['referenced_bases'] = file_content['bases']
 
-            metadata['fileContent'] = file_content
-            metadata['filePath'] = f"{kustomization_path}"
-            if metadata.get('type') == "base":
-                self.potentialBases.append(metadata['filePath'])
+        elif 'bases' in file_content:
+            logging.debug(f"Kustomization contains bases: section. Likley an overlay/env. {kustomization_path}")
+            metadata['type'] = "overlay"
+            metadata['referenced_bases'] = file_content['bases']
 
-            if metadata.get('type') == "overlay":
-                self.potentialOverlays.append(metadata['filePath'])
+        metadata['fileContent'] = file_content
+        metadata['filePath'] = f"{kustomization_path}"
+        if metadata.get('type') == "base":
+            self.potentialBases.append(metadata['filePath'])
+
+        if metadata.get('type') == "overlay":
+            self.potentialOverlays.append(metadata['filePath'])
 
         return metadata
 
@@ -786,28 +773,33 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
 
 
 def _kustomization_file_path(kustomize_dir: str) -> str | None:
-    for name in Runner.kustomizeSupportedFileTypes:
-        path = os.path.join(kustomize_dir, name)
-        if os.path.isfile(path):
-            return path
+    yml_path = os.path.join(kustomize_dir, "kustomization.yml")
+    yaml_path = os.path.join(kustomize_dir, "kustomization.yaml")
+    if os.path.isfile(yml_path):
+        return yml_path
+    if os.path.isfile(yaml_path):
+        return yaml_path
     return None
 
 
-def _get_kustomization_directory_refs(kustomize_dir: str) -> list[str]:
+def _load_kustomization_content(kustomize_dir: str) -> dict[str, Any] | None:
     kustomization_path = _kustomization_file_path(kustomize_dir)
     if not kustomization_path:
-        return []
+        return None
 
     with open(kustomization_path, encoding="utf-8") as kustomization_file:
         try:
             file_content = yaml.safe_load(kustomization_file)
         except yaml.YAMLError:
             logging.info(f"Failed to load Kustomize metadata from {kustomization_path}.", exc_info=True)
-            return []
+            return None
 
     if not isinstance(file_content, dict):
-        return []
+        return None
+    return file_content
 
+
+def _kustomization_directory_refs(file_content: dict[str, Any]) -> list[str]:
     directory_refs: list[str] = []
     for key in ("resources", "bases", "components"):
         entries = file_content.get(key)
@@ -825,6 +817,13 @@ def _get_kustomization_directory_refs(kustomize_dir: str) -> list[str]:
                 continue
             directory_refs.append(ref)
     return directory_refs
+
+
+def _get_kustomization_directory_refs(kustomize_dir: str) -> list[str]:
+    file_content = _load_kustomization_content(kustomize_dir)
+    if not file_content:
+        return []
+    return _kustomization_directory_refs(file_content)
 
 
 def filter_path_nested_kustomize_directories(kustomize_directories: list[str]) -> list[str]:
