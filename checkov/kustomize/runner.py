@@ -785,6 +785,97 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
             pass
 
 
+def _kustomization_file_path(kustomize_dir: str) -> str | None:
+    for name in Runner.kustomizeSupportedFileTypes:
+        path = os.path.join(kustomize_dir, name)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _get_kustomization_directory_refs(kustomize_dir: str) -> list[str]:
+    kustomization_path = _kustomization_file_path(kustomize_dir)
+    if not kustomization_path:
+        return []
+
+    with open(kustomization_path, encoding="utf-8") as kustomization_file:
+        try:
+            file_content = yaml.safe_load(kustomization_file)
+        except yaml.YAMLError:
+            logging.info(f"Failed to load Kustomize metadata from {kustomization_path}.", exc_info=True)
+            return []
+
+    if not isinstance(file_content, dict):
+        return []
+
+    directory_refs: list[str] = []
+    for key in ("resources", "bases", "components"):
+        entries = file_content.get(key)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            ref: str | None = None
+            if isinstance(entry, str):
+                ref = entry
+            elif isinstance(entry, dict):
+                ref = entry.get("path") or entry.get("base")
+            if not ref or "://" in ref:
+                continue
+            if pathlib.Path(ref).suffix in (".yaml", ".yml", ".json", ".properties", ".env"):
+                continue
+            directory_refs.append(ref)
+    return directory_refs
+
+
+def filter_path_nested_kustomize_directories(kustomize_directories: list[str]) -> list[str]:
+    """Drop kustomization dirs that live inside another discovered kustomization directory."""
+    if len(kustomize_directories) <= 1:
+        return kustomize_directories
+
+    abs_map = {d: os.path.abspath(d) for d in kustomize_directories}
+    return [
+        kustomize_dir
+        for kustomize_dir, abs_dir in abs_map.items()
+        if not any(
+            abs_dir != other_abs and abs_dir.startswith(other_abs + os.sep)
+            for other_abs in abs_map.values()
+        )
+    ]
+
+
+def filter_root_kustomize_directories(kustomize_directories: list[str]) -> list[str]:
+    """
+    Keep only kustomization roots (not referenced as resources/bases/components by another
+    kustomization in the same scan). Intermediate component kustomizations are composed by
+    their parent `kustomize build` and should not be built in isolation.
+    """
+    if len(kustomize_directories) <= 1:
+        return kustomize_directories
+
+    abs_dirs = {os.path.abspath(d) for d in kustomize_directories}
+    referenced: set[str] = set()
+    for kustomize_dir in kustomize_directories:
+        for ref in _get_kustomization_directory_refs(kustomize_dir):
+            resolved = os.path.abspath(os.path.join(kustomize_dir, ref))
+            if resolved in abs_dirs:
+                referenced.add(resolved)
+
+    roots = [d for d in kustomize_directories if os.path.abspath(d) not in referenced]
+    if not roots:
+        logging.warning(
+            "Kustomize directory filtering removed all targets; scanning all discovered kustomizations."
+        )
+        return kustomize_directories
+
+    skipped = abs_dirs - {os.path.abspath(d) for d in roots}
+    if skipped:
+        logging.debug(
+            "Skipping nested kustomizations referenced by a parent: %s",
+            sorted(os.path.relpath(d, kustomize_directories[0]) if kustomize_directories else d for d in skipped),
+        )
+    return roots
+
+
 def find_kustomize_directories(
     root_folder: str | None, files: list[str] | None, excluded_paths: list[str]
 ) -> list[str]:
@@ -796,6 +887,7 @@ def find_kustomize_directories(
         for file in files:
             if os.path.basename(file) in Runner.kustomizeSupportedFileTypes:
                 kustomize_directories.append(os.path.dirname(file))
+        return kustomize_directories
 
     if root_folder:
         for root, d_names, f_names in os.walk(root_folder):
@@ -805,4 +897,5 @@ def find_kustomize_directories(
                 os.path.abspath(root) for x in f_names if x in Runner.kustomizeSupportedFileTypes
             )
 
-    return kustomize_directories
+    kustomize_directories = filter_path_nested_kustomize_directories(kustomize_directories)
+    return filter_root_kustomize_directories(kustomize_directories)
