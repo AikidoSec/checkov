@@ -27,7 +27,7 @@ from checkov.common.util.consts import START_LINE, END_LINE
 from checkov.common.util.data_structures_utils import pickle_deepcopy
 from checkov.common.util.type_forcers import convert_str_to_bool
 from checkov.kubernetes.kubernetes_utils import create_check_result, get_resource_id, calculate_code_lines, \
-    PARENT_RESOURCE_ID_KEY_NAME
+    get_files_definitions, PARENT_RESOURCE_ID_KEY_NAME
 from checkov.kubernetes.runner import Runner as K8sRunner
 from checkov.kubernetes.runner import _get_entity_abs_path
 from checkov.kustomize.image_referencer.manager import KustomizeImageReferencerManager
@@ -169,8 +169,9 @@ class K8sKustomizeRunner(K8sRunner):
         caller_file_path = self._get_caller_file_path(k8s_file_dir, origin_relative_path, raw_file_path)
         if root_folder is None:
             return None, caller_file_path
-        caller_file_line_range = self._get_caller_line_range(root_folder, k8_file, origin_relative_path,
-                                                             resource_id, caller_resource_id)
+        caller_file_line_range = self._get_caller_line_range(
+            root_folder, k8_file, origin_relative_path, resource_id, caller_resource_id, caller_file_path
+        )
         return caller_file_line_range, caller_file_path
 
     @staticmethod
@@ -199,7 +200,10 @@ class K8sKustomizeRunner(K8sRunner):
         if directory_prefix in resolved_path and not resolved_path.startswith(directory_prefix):
             resolved_path = K8sKustomizeRunner._remove_extra_path_parts(resolved_path, directory_prefix)
 
-        return resolved_path[len(str(directory_prefix)):]
+        relative_path = resolved_path[len(str(directory_prefix)):]
+        if not relative_path.startswith('/'):
+            relative_path = f'/{relative_path}'
+        return relative_path
 
     @staticmethod
     def _remove_extra_path_parts(resolved_path: str, prefix: str) -> str:
@@ -215,8 +219,26 @@ class K8sKustomizeRunner(K8sRunner):
             resolved_path = f'{prefix}{"".join(resolved_path_parts)}'
         return resolved_path
 
+    def _line_range_from_source_file(self, source_path: str, resource_id: str) -> tuple[int, int] | None:
+        definitions, definitions_raw = get_files_definitions([source_path])
+        if source_path not in definitions:
+            return None
+
+        for resource in definitions[source_path]:
+            if get_resource_id(resource) != resource_id:
+                continue
+            if source_path not in definitions_raw:
+                return resource[START_LINE], resource[END_LINE]
+            raw_source = definitions_raw[source_path]
+            _, start_line, end_line = calculate_code_lines(
+                raw_source, resource[START_LINE], min(resource[END_LINE], len(raw_source))
+            )
+            return start_line, end_line
+        return None
+
     def _get_caller_line_range(self, root_folder: str, k8_file: str, origin_relative_path: str,
-                               resource_id: str, caller_resource_id: str) -> tuple[int, int] | None:
+                               resource_id: str, caller_resource_id: str,
+                               caller_repo_path: str) -> tuple[int, int] | None:
         raw_caller_directory = (pathlib.Path(k8_file.lstrip(os.path.sep)).parent /
                                 pathlib.Path(origin_relative_path.lstrip(os.path.sep)).parent)
         caller_directory = str(pathlib.Path(f'{os.path.sep}{raw_caller_directory}').resolve())
@@ -224,32 +246,21 @@ class K8sKustomizeRunner(K8sRunner):
         file_ending = pathlib.Path(origin_relative_path).suffix
         caller_file_path = f'{str(pathlib.Path(caller_directory) / caller_resource_id.replace(".", "-"))}{file_ending}'
 
-        if caller_file_path not in self.definitions:
+        if self.definitions and caller_file_path in self.definitions:
+            line_range = self._line_range_from_source_file(caller_file_path, resource_id)
+            if line_range is not None and self.definitions_raw and caller_file_path in self.definitions_raw:
+                return line_range
+
+        if not self.original_root_dir:
             return None
 
-        caller_resource = None
-        for resource in self.definitions[caller_file_path]:
-            _resource_id = get_resource_id(resource)
-            if _resource_id == resource_id:
-                caller_resource = resource
-                break
-
-        if caller_resource is None:
+        source_abs_path = os.path.normpath(
+            os.path.join(self.original_root_dir, caller_repo_path.lstrip(os.path.sep))
+        )
+        if not os.path.isfile(source_abs_path):
             return None
 
-        if caller_file_path not in self.definitions_raw:
-            # As we cannot calculate better lines with the `calculate_code_lines` without the raw code,
-            # we can use the existing info in the resource
-            return caller_resource[START_LINE], caller_resource[END_LINE]
-
-        raw_caller_resource = self.definitions_raw[caller_file_path]
-
-        caller_raw_start_line = caller_resource[START_LINE]
-        caller_raw_end_line = min(caller_resource[END_LINE], len(raw_caller_resource))
-
-        _, caller_start_line, caller_end_line = calculate_code_lines(raw_caller_resource, caller_raw_start_line,
-                                                                     caller_raw_end_line)
-        return caller_start_line, caller_end_line
+        return self._line_range_from_source_file(source_abs_path, resource_id)
 
     def line_range(self, code_lines: list[tuple[int, str]]) -> list[int]:
         num_of_lines = len(code_lines)
