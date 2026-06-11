@@ -897,6 +897,7 @@ def find_kustomize_directories(
         for file in files:
             if os.path.basename(file) in Runner.kustomizeSupportedFileTypes:
                 kustomize_directories.append(os.path.dirname(file))
+        # As individual files are provided, it's not needed to filter nested kustomization files
         return kustomize_directories
 
     if root_folder:
