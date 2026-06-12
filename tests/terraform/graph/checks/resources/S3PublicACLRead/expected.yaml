@@ -5,6 +5,9 @@ pass:
   - "aws_s3_bucket.no_grant"
   - "aws_s3_bucket.grant_onwer"
   - "aws_s3_bucket.public_read"
+  - "aws_s3_bucket.public_read_with_pab"
+  - "aws_s3_bucket.public_read_v4_with_pab"
+  - "aws_s3_bucket.grant_public_read_all_with_pab"
 fail:
   - "aws_s3_bucket.public_read"
   - "aws_s3_bucket.public_read_write"
@@ -15,3 +18,5 @@ fail:
   - "aws_s3_bucket.website_v4"
   - "aws_s3_bucket.authenticated_read_v4"
   - "aws_s3_bucket.grant_public_read_all"
+  - "aws_s3_bucket.public_read_partial_pab_block_only"
+  - "aws_s3_bucket.public_read_partial_pab_ignore_only"
