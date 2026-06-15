@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional, cast, TYPE_CHECKING, Type
 from typing_extensions import Literal
 
 from checkov.common.bridgecrew.code_categories import CodeCategoryMapping, CodeCategoryType
+from checkov.common.bridgecrew.platform_errors import ModuleNotEnabledError
 from checkov.common.bridgecrew.platform_integration import bc_integration
 from checkov.common.bridgecrew.integration_features.features.policy_metadata_integration import \
     integration as metadata_integration
