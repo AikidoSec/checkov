@@ -27,7 +27,7 @@ from checkov.common.util.consts import START_LINE, END_LINE
 from checkov.common.util.data_structures_utils import pickle_deepcopy
 from checkov.common.util.type_forcers import convert_str_to_bool
 from checkov.kubernetes.kubernetes_utils import create_check_result, get_resource_id, calculate_code_lines, \
-    PARENT_RESOURCE_ID_KEY_NAME
+    get_files_definitions, PARENT_RESOURCE_ID_KEY_NAME
 from checkov.kubernetes.runner import Runner as K8sRunner
 from checkov.kubernetes.runner import _get_entity_abs_path
 from checkov.kustomize.image_referencer.manager import KustomizeImageReferencerManager
@@ -169,8 +169,9 @@ class K8sKustomizeRunner(K8sRunner):
         caller_file_path = self._get_caller_file_path(k8s_file_dir, origin_relative_path, raw_file_path)
         if root_folder is None:
             return None, caller_file_path
-        caller_file_line_range = self._get_caller_line_range(root_folder, k8_file, origin_relative_path,
-                                                             resource_id, caller_resource_id)
+        caller_file_line_range = self._get_caller_line_range(
+            root_folder, k8_file, origin_relative_path, resource_id, caller_resource_id, caller_file_path
+        )
         return caller_file_line_range, caller_file_path
 
     @staticmethod
@@ -199,7 +200,10 @@ class K8sKustomizeRunner(K8sRunner):
         if directory_prefix in resolved_path and not resolved_path.startswith(directory_prefix):
             resolved_path = K8sKustomizeRunner._remove_extra_path_parts(resolved_path, directory_prefix)
 
-        return resolved_path[len(str(directory_prefix)):]
+        relative_path = resolved_path[len(str(directory_prefix)):]
+        if not relative_path.startswith('/'):
+            relative_path = f'/{relative_path}'
+        return relative_path
 
     @staticmethod
     def _remove_extra_path_parts(resolved_path: str, prefix: str) -> str:
@@ -215,8 +219,26 @@ class K8sKustomizeRunner(K8sRunner):
             resolved_path = f'{prefix}{"".join(resolved_path_parts)}'
         return resolved_path
 
+    def _line_range_from_source_file(self, source_path: str, resource_id: str) -> tuple[int, int] | None:
+        definitions, definitions_raw = get_files_definitions([source_path])
+        if source_path not in definitions:
+            return None
+
+        for resource in definitions[source_path]:
+            if get_resource_id(resource) != resource_id:
+                continue
+            if source_path not in definitions_raw:
+                return resource[START_LINE], resource[END_LINE]
+            raw_source = definitions_raw[source_path]
+            _, start_line, end_line = calculate_code_lines(
+                raw_source, resource[START_LINE], min(resource[END_LINE], len(raw_source))
+            )
+            return start_line, end_line
+        return None
+
     def _get_caller_line_range(self, root_folder: str, k8_file: str, origin_relative_path: str,
-                               resource_id: str, caller_resource_id: str) -> tuple[int, int] | None:
+                               resource_id: str, caller_resource_id: str,
+                               caller_repo_path: str) -> tuple[int, int] | None:
         raw_caller_directory = (pathlib.Path(k8_file.lstrip(os.path.sep)).parent /
                                 pathlib.Path(origin_relative_path.lstrip(os.path.sep)).parent)
         caller_directory = str(pathlib.Path(f'{os.path.sep}{raw_caller_directory}').resolve())
@@ -224,32 +246,21 @@ class K8sKustomizeRunner(K8sRunner):
         file_ending = pathlib.Path(origin_relative_path).suffix
         caller_file_path = f'{str(pathlib.Path(caller_directory) / caller_resource_id.replace(".", "-"))}{file_ending}'
 
-        if caller_file_path not in self.definitions:
+        if self.definitions and caller_file_path in self.definitions:
+            line_range = self._line_range_from_source_file(caller_file_path, resource_id)
+            if line_range is not None and self.definitions_raw and caller_file_path in self.definitions_raw:
+                return line_range
+
+        if not self.original_root_dir:
             return None
 
-        caller_resource = None
-        for resource in self.definitions[caller_file_path]:
-            _resource_id = get_resource_id(resource)
-            if _resource_id == resource_id:
-                caller_resource = resource
-                break
-
-        if caller_resource is None:
+        source_abs_path = os.path.normpath(
+            os.path.join(self.original_root_dir, caller_repo_path.lstrip(os.path.sep))
+        )
+        if not os.path.isfile(source_abs_path):
             return None
 
-        if caller_file_path not in self.definitions_raw:
-            # As we cannot calculate better lines with the `calculate_code_lines` without the raw code,
-            # we can use the existing info in the resource
-            return caller_resource[START_LINE], caller_resource[END_LINE]
-
-        raw_caller_resource = self.definitions_raw[caller_file_path]
-
-        caller_raw_start_line = caller_resource[START_LINE]
-        caller_raw_end_line = min(caller_resource[END_LINE], len(raw_caller_resource))
-
-        _, caller_start_line, caller_end_line = calculate_code_lines(raw_caller_resource, caller_raw_start_line,
-                                                                     caller_raw_end_line)
-        return caller_start_line, caller_end_line
+        return self._line_range_from_source_file(source_abs_path, resource_id)
 
     def line_range(self, code_lines: list[tuple[int, str]]) -> list[int]:
         num_of_lines = len(code_lines)
@@ -367,6 +378,7 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         self.potentialBases: "list[str]" = []
         self.potentialOverlays: "list[str]" = []
         self.kustomizeProcessedFolderAndMeta: "dict[str, dict[str, str]]" = {}
+        self.managed_directories: set[str] = set()
         self.kustomizeFileMappings: "dict[str, str]" = {}
         self.templateRendererCommand: str | None = None
         self.target_folder_path = ''
@@ -389,61 +401,48 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         # We need parse some of the Kustomization.yaml files to work out which
         # This is so we can provide "Environment" information back to the user as part of the checked resource name/description.
         # TODO: We could also add a --kustomize-environment option so we only scan certain overlay names (prod, test etc) useful in CI.
-        yaml_path = os.path.join(kustomize_dir, "kustomization.yaml")
-        yml_path = os.path.join(kustomize_dir, "kustomization.yml")
-        if os.path.isfile(yml_path):
-            kustomization_path = yml_path
-        elif os.path.isfile(yaml_path):
-            kustomization_path = yaml_path
-        else:
+        file_content = _load_kustomization_content(kustomize_dir)
+        if not file_content:
             return {}
 
-        with open(kustomization_path, 'r') as kustomization_file:
-            metadata: dict[str, Any] = {}
-            try:
-                file_content = yaml.safe_load(kustomization_file)
-            except yaml.YAMLError:
-                logging.info(f"Failed to load Kustomize metadata from {kustomization_path}.", exc_info=True)
-                return {}
+        kustomization_path = _kustomization_file_path(kustomize_dir)
+        metadata: dict[str, Any] = {}
 
-            if not isinstance(file_content, dict):
-                return {}
+        if 'resources' in file_content:
+            resources = file_content['resources']
 
-            if 'resources' in file_content:
-                resources = file_content['resources']
-
-                # We can differentiate between "overlays" and "bases" based on if the `resources` refers to a directory,
-                # which represents an "overlay", or only files which represents a "base"
-                resources_representing_directories = [r for r in resources if pathlib.Path(r).suffix == '']
-                if resources_representing_directories:
-                    logging.debug(
-                        f"Kustomization contains resources: section with directories. Likely an overlay/env."
-                        f" {kustomization_path}")
-                    metadata['type'] = "overlay"
-                    metadata['referenced_bases'] = resources_representing_directories
-                else:
-                    logging.debug(f"Kustomization contains resources: section with only files (no dirs). Likley a base."
-                                  f" {kustomization_path}")
-                    metadata['type'] = "base"
-
-            elif 'patchesStrategicMerge' in file_content:
-                logging.debug(f"Kustomization contains patchesStrategicMerge: section. Likley an overlay/env. {kustomization_path}")
+            # We can differentiate between "overlays" and "bases" based on if the `resources` refers to a directory,
+            # which represents an "overlay", or only files which represents a "base"
+            resources_representing_directories = [r for r in resources if pathlib.Path(r).suffix == '']
+            if resources_representing_directories:
+                logging.debug(
+                    f"Kustomization contains resources: section with directories. Likely an overlay/env."
+                    f" {kustomization_path}")
                 metadata['type'] = "overlay"
-                if 'bases' in file_content:
-                    metadata['referenced_bases'] = file_content['bases']
+                metadata['referenced_bases'] = resources_representing_directories
+            else:
+                logging.debug(f"Kustomization contains resources: section with only files (no dirs). Likley a base."
+                              f" {kustomization_path}")
+                metadata['type'] = "base"
 
-            elif 'bases' in file_content:
-                logging.debug(f"Kustomization contains bases: section. Likley an overlay/env. {kustomization_path}")
-                metadata['type'] = "overlay"
+        elif 'patchesStrategicMerge' in file_content:
+            logging.debug(f"Kustomization contains patchesStrategicMerge: section. Likley an overlay/env. {kustomization_path}")
+            metadata['type'] = "overlay"
+            if 'bases' in file_content:
                 metadata['referenced_bases'] = file_content['bases']
 
-            metadata['fileContent'] = file_content
-            metadata['filePath'] = f"{kustomization_path}"
-            if metadata.get('type') == "base":
-                self.potentialBases.append(metadata['filePath'])
+        elif 'bases' in file_content:
+            logging.debug(f"Kustomization contains bases: section. Likley an overlay/env. {kustomization_path}")
+            metadata['type'] = "overlay"
+            metadata['referenced_bases'] = file_content['bases']
 
-            if metadata.get('type') == "overlay":
-                self.potentialOverlays.append(metadata['filePath'])
+        metadata['fileContent'] = file_content
+        metadata['filePath'] = f"{kustomization_path}"
+        if metadata.get('type') == "base":
+            self.potentialBases.append(metadata['filePath'])
+
+        if metadata.get('type') == "overlay":
+            self.potentialOverlays.append(metadata['filePath'])
 
         return metadata
 
@@ -651,7 +650,10 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
     def run_kustomize_to_k8s(
         self, root_folder: str | None, files: list[str] | None, runner_filter: RunnerFilter
     ) -> None:
-        kustomize_dirs = find_kustomize_directories(root_folder, files, runner_filter.excluded_paths)
+        self.managed_directories = set()
+        kustomize_dirs = find_kustomize_directories(
+            root_folder, files, runner_filter.excluded_paths, self.managed_directories
+        )
         if not kustomize_dirs:
             # nothing to process
             return
@@ -785,8 +787,123 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
             pass
 
 
+def _kustomization_file_path(kustomize_dir: str) -> str | None:
+    yml_path = os.path.join(kustomize_dir, "kustomization.yml")
+    yaml_path = os.path.join(kustomize_dir, "kustomization.yaml")
+    if os.path.isfile(yml_path):
+        return yml_path
+    if os.path.isfile(yaml_path):
+        return yaml_path
+    return None
+
+
+def _load_kustomization_content(kustomize_dir: str) -> dict[str, Any] | None:
+    kustomization_path = _kustomization_file_path(kustomize_dir)
+    if not kustomization_path:
+        return None
+
+    with open(kustomization_path, encoding="utf-8") as kustomization_file:
+        try:
+            file_content = yaml.safe_load(kustomization_file)
+        except yaml.YAMLError:
+            logging.info(f"Failed to load Kustomize metadata from {kustomization_path}.", exc_info=True)
+            return None
+
+    if not isinstance(file_content, dict):
+        return None
+    return file_content
+
+
+def _kustomization_directory_refs(file_content: dict[str, Any]) -> list[str]:
+    directory_refs: list[str] = []
+    for key in ("resources", "bases", "components"):
+        entries = file_content.get(key)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            ref: str | None = None
+            if isinstance(entry, str):
+                ref = entry
+            elif isinstance(entry, dict):
+                ref = entry.get("path") or entry.get("base")
+            if not ref or "://" in ref:
+                continue
+            if pathlib.Path(ref).suffix in (".yaml", ".yml", ".json", ".properties", ".env"):
+                continue
+            directory_refs.append(ref)
+    return directory_refs
+
+
+def _get_kustomization_directory_refs(kustomize_dir: str) -> list[str]:
+    file_content = _load_kustomization_content(kustomize_dir)
+    if not file_content:
+        return []
+    return _kustomization_directory_refs(file_content)
+
+
+def filter_path_nested_kustomize_directories(kustomize_directories: list[str]) -> list[str]:
+    """Drop kustomization dirs that live inside another discovered kustomization directory."""
+    if len(kustomize_directories) <= 1:
+        return kustomize_directories
+
+    abs_map = {d: os.path.abspath(d) for d in kustomize_directories}
+    return [
+        kustomize_dir
+        for kustomize_dir, abs_dir in abs_map.items()
+        if not any(
+            abs_dir != other_abs and abs_dir.startswith(other_abs + os.sep)
+            for other_abs in abs_map.values()
+        )
+    ]
+
+
+def filter_root_kustomize_directories(
+    kustomize_directories: list[str],
+    managed_directories: set[str] | None = None,
+) -> list[str]:
+    """
+    Keep only kustomization roots (not referenced as resources/bases/components by another
+    kustomization in the same scan). Intermediate component kustomizations are composed by
+    their parent `kustomize build` and should not be built in isolation.
+
+    Managed directories are directories that are managed by the kustomize runner, and is by reference passed
+    to the kubernetes runner to skip scanning for kubernetes checks.
+    """
+    abs_dirs = {os.path.abspath(d) for d in kustomize_directories}
+    if managed_directories is not None:
+        managed_directories.update(abs_dirs)
+
+    if len(kustomize_directories) <= 1:
+        return kustomize_directories
+
+    referenced: set[str] = set()
+    for kustomize_dir in kustomize_directories:
+        for ref in _get_kustomization_directory_refs(kustomize_dir):
+            resolved = os.path.abspath(os.path.join(kustomize_dir, ref))
+            if resolved in abs_dirs:
+                referenced.add(resolved)
+
+    roots = [d for d in kustomize_directories if os.path.abspath(d) not in referenced]
+    if not roots:
+        logging.warning(
+            "Kustomize directory filtering removed all targets; scanning all discovered kustomizations."
+        )
+        return kustomize_directories
+
+    skipped = abs_dirs - {os.path.abspath(d) for d in roots}
+    if skipped:
+        logging.debug(
+            "Skipping nested kustomizations referenced by a parent: %s",
+            sorted(os.path.relpath(d, kustomize_directories[0]) if kustomize_directories else d for d in skipped),
+        )
+    return roots
+
+
 def find_kustomize_directories(
-    root_folder: str | None, files: list[str] | None, excluded_paths: list[str]
+    root_folder: str | None,
+    files: list[str] | None,
+    excluded_paths: list[str],
+    managed_directories: set[str] | None = None,
 ) -> list[str]:
     kustomize_directories = []
     if not excluded_paths:
@@ -796,6 +913,7 @@ def find_kustomize_directories(
         for file in files:
             if os.path.basename(file) in Runner.kustomizeSupportedFileTypes:
                 kustomize_directories.append(os.path.dirname(file))
+        return filter_root_kustomize_directories(kustomize_directories, managed_directories)
 
     if root_folder:
         for root, d_names, f_names in os.walk(root_folder):
@@ -805,4 +923,28 @@ def find_kustomize_directories(
                 os.path.abspath(root) for x in f_names if x in Runner.kustomizeSupportedFileTypes
             )
 
-    return kustomize_directories
+    kustomize_directories = filter_path_nested_kustomize_directories(kustomize_directories)
+    return filter_root_kustomize_directories(kustomize_directories, managed_directories)
+
+
+def is_path_under_kustomize_dir(file_path: str, kustomize_dirs: set[str]) -> bool:
+    abs_path = os.path.abspath(file_path)
+    return any(
+        abs_path == kustomize_dir or abs_path.startswith(kustomize_dir + os.sep)
+        for kustomize_dir in kustomize_dirs
+    )
+
+
+def filter_kubernetes_report_for_kustomize_dirs(report: Report, kustomize_dirs: set[str]) -> None:
+    if report.check_type != CheckType.KUBERNETES or not kustomize_dirs:
+        return
+
+    report.failed_checks = [
+        record for record in report.failed_checks
+        if not is_path_under_kustomize_dir(record.file_abs_path, kustomize_dirs)
+    ]
+
+    report.passed_checks = [
+        record for record in report.passed_checks
+        if not is_path_under_kustomize_dir(record.file_abs_path, kustomize_dirs)
+    ]

@@ -1,5 +1,5 @@
 module "web_server_sg" {
-  source = "terraform-aws-modules/security-group/aws//modules/http-80"
+  source  = "terraform-aws-modules/security-group/aws//modules/http-80"
   version = "4.0.0"
 
   name        = "web-server"
