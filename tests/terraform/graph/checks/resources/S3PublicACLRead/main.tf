@@ -169,3 +169,87 @@ resource "aws_s3_bucket_acl" "grant_public_read_all" {
     }
   }
 }
+
+# pass - public ACL is blocked by aws_s3_bucket_public_access_block
+
+resource "aws_s3_bucket" "public_read_with_pab" {
+  bucket = "example"
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_public_access_block" "public_read_with_pab" {
+  bucket = aws_s3_bucket.public_read_with_pab.id
+
+  block_public_acls  = true
+  ignore_public_acls = true
+}
+
+resource "aws_s3_bucket" "public_read_v4_with_pab" {
+  bucket = "example"
+}
+
+resource "aws_s3_bucket_acl" "public_read_v4_with_pab" {
+  bucket = aws_s3_bucket.public_read_v4_with_pab.id
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_public_access_block" "public_read_v4_with_pab" {
+  bucket = aws_s3_bucket.public_read_v4_with_pab.id
+
+  block_public_acls  = true
+  ignore_public_acls = true
+}
+
+resource "aws_s3_bucket" "grant_public_read_all_with_pab" {
+  bucket = "example"
+}
+
+resource "aws_s3_bucket_acl" "grant_public_read_all_with_pab" {
+  bucket = aws_s3_bucket.grant_public_read_all_with_pab.bucket
+
+  access_control_policy {
+    owner {
+      id = data.aws_canonical_user_id.current.id
+    }
+    grant {
+      grantee {
+        type = "Group"
+        uri  = "http://acs.amazonaws.com/groups/global/AllUsers"
+      }
+      permission = "READ"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "grant_public_read_all_with_pab" {
+  bucket = aws_s3_bucket.grant_public_read_all_with_pab.id
+
+  block_public_acls  = true
+  ignore_public_acls = true
+}
+
+# fail - public ACL without full public access block protection
+
+resource "aws_s3_bucket" "public_read_partial_pab_block_only" {
+  bucket = "example"
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_public_access_block" "public_read_partial_pab_block_only" {
+  bucket = aws_s3_bucket.public_read_partial_pab_block_only.id
+
+  block_public_acls  = true
+  ignore_public_acls = false
+}
+
+resource "aws_s3_bucket" "public_read_partial_pab_ignore_only" {
+  bucket = "example"
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_public_access_block" "public_read_partial_pab_ignore_only" {
+  bucket = aws_s3_bucket.public_read_partial_pab_ignore_only.id
+
+  block_public_acls  = false
+  ignore_public_acls = true
+}
