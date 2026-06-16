@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional, cast, TYPE_CHECKING, Type
 from typing_extensions import Literal
 
 from checkov.common.bridgecrew.code_categories import CodeCategoryMapping, CodeCategoryType
+from checkov.common.bridgecrew.platform_errors import ModuleNotEnabledError
 from checkov.common.bridgecrew.platform_integration import bc_integration
 from checkov.common.bridgecrew.integration_features.features.policy_metadata_integration import \
     integration as metadata_integration
@@ -23,7 +24,7 @@ from checkov.common.bridgecrew.integration_features.features.repo_config_integra
 from checkov.common.bridgecrew.integration_features.features.licensing_integration import \
     integration as licensing_integration
 from checkov.common.bridgecrew.integration_features.integration_feature_registry import integration_feature_registry
-from checkov.common.bridgecrew.platform_errors import ModuleNotEnabledError
+from checkov.common.bridgecrew.check_type import CheckType
 from checkov.common.bridgecrew.severities import Severities
 from checkov.common.images.image_referencer import ImageReferencer
 from checkov.common.models.enums import ErrorStatus
@@ -46,6 +47,7 @@ from checkov.secrets.consts import SECRET_VALIDATION_STATUSES
 from checkov.terraform.context_parsers.registry import parser_registry
 from checkov.terraform.parser import Parser
 from checkov.terraform.runner import Runner as tf_runner
+from checkov.kustomize.runner import filter_kubernetes_report_for_kustomize_dirs
 
 if TYPE_CHECKING:
     from checkov.common.output.baseline import Baseline
@@ -107,6 +109,7 @@ class RunnerRegistry:
             collect_skip_comments: bool = True,
             repo_root_for_plan_enrichment: list[str | Path] | None = None,
     ) -> list[Report]:
+        kustomize_managed_dirs: set[str] = set()
         if not self.runners:
             logging.error('There are no runners to run. This can happen if you specify a file type and a framework that are not compatible '
                           '(e.g., `--file xyz.yaml --framework terraform`), or if you specify a framework with missing dependencies (e.g., '
@@ -119,11 +122,15 @@ class RunnerRegistry:
                     self.runners[0].run(root_folder, external_checks_dir=external_checks_dir, files=files,
                                         runner_filter=self.runner_filter,
                                         collect_skip_comments=collect_skip_comments)]
+                if runner_check_type == CheckType.KUSTOMIZE:
+                    kustomize_managed_dirs = getattr(self.runners[0], 'managed_directories', set()) or set()
             else:
                 # This is the only runner, so raise a clear indication of failure
                 raise ModuleNotEnabledError(f'The framework "{runner_check_type}" is part of the "{self.licensing_integration.get_subscription_for_runner(runner_check_type).name}" module, which is not enabled in the platform')
         else:
-            def _parallel_run(runner: _BaseRunner) -> tuple[Report | list[Report], str | None, DiGraph | Graph | None]:
+            def _parallel_run(
+                runner: _BaseRunner,
+            ) -> tuple[Report | list[Report], str | None, DiGraph | Graph | None, set[str] | None]:
                 report = runner.run(
                     root_folder=root_folder,
                     external_checks_dir=external_checks_dir,
@@ -136,9 +143,13 @@ class RunnerRegistry:
                     logging.error(f"Failed to create report for {runner.check_type} framework")
                     report = Report(check_type=runner.check_type)
 
+                managed_dirs = None
+                if runner.check_type == CheckType.KUSTOMIZE:
+                    managed_dirs = getattr(runner, 'managed_directories', None)
+
                 if runner.graph_manager:
-                    return report, runner.check_type, runner.graph_manager.get_reader_endpoint()
-                return report, None, None
+                    return report, runner.check_type, runner.graph_manager.get_reader_endpoint(), managed_dirs
+                return report, None, None, managed_dirs
 
             valid_runners = []
             invalid_runners = []
@@ -171,13 +182,16 @@ class RunnerRegistry:
             full_check_type_to_graph = {}
             for result in parallel_runner_results:
                 if result is not None:
-                    report, check_type, graph = result
+                    report, check_type, graph, managed_dirs = result
                     reports.append(report)
                     if check_type is not None and graph is not None:
                         full_check_type_to_graph[check_type] = graph
+                    if managed_dirs:
+                        kustomize_managed_dirs.update(managed_dirs)
             self.check_type_to_graph = full_check_type_to_graph
 
         merged_reports = self._merge_reports(reports)
+        self._filter_kubernetes_kustomize_overlap(merged_reports, kustomize_managed_dirs)
         if bc_integration.bc_api_key:
             self.secrets_omitter_class(merged_reports).omit()
 
@@ -632,6 +646,30 @@ class RunnerRegistry:
         if "all" in self.runner_filter.framework:
             return
         self.runners = [runner for runner in self.runners if runner.check_type in self.runner_filter.framework]
+
+    def _filter_kubernetes_kustomize_overlap(
+        self,
+        reports: list[Report],
+        kustomize_managed_dirs: set[str],
+    ) -> None:
+        if not self.runner_filter or not kustomize_managed_dirs:
+            return
+
+        framework = self.runner_filter.framework
+        if CheckType.KUSTOMIZE not in framework and "all" not in framework:
+            return
+
+        runner_types = {runner.check_type for runner in self.runners}
+        if CheckType.KUBERNETES not in runner_types or CheckType.KUSTOMIZE not in runner_types:
+            return
+
+        for report in reports:
+            filter_kubernetes_report_for_kustomize_dirs(report, kustomize_managed_dirs)
+
+        logging.debug(
+            "Removed kubernetes findings under %d kustomize directories after scan",
+            len(kustomize_managed_dirs),
+        )
 
     def filter_runners_for_files(self, files: List[str]) -> None:
         if not files:

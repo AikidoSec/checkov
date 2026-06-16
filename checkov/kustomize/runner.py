@@ -378,6 +378,7 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         self.potentialBases: "list[str]" = []
         self.potentialOverlays: "list[str]" = []
         self.kustomizeProcessedFolderAndMeta: "dict[str, dict[str, str]]" = {}
+        self.managed_directories: set[str] = set()
         self.kustomizeFileMappings: "dict[str, str]" = {}
         self.templateRendererCommand: str | None = None
         self.target_folder_path = ''
@@ -649,7 +650,10 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
     def run_kustomize_to_k8s(
         self, root_folder: str | None, files: list[str] | None, runner_filter: RunnerFilter
     ) -> None:
-        kustomize_dirs = find_kustomize_directories(root_folder, files, runner_filter.excluded_paths)
+        self.managed_directories = set()
+        kustomize_dirs = find_kustomize_directories(
+            root_folder, files, runner_filter.excluded_paths, self.managed_directories
+        )
         if not kustomize_dirs:
             # nothing to process
             return
@@ -853,16 +857,25 @@ def filter_path_nested_kustomize_directories(kustomize_directories: list[str]) -
     ]
 
 
-def filter_root_kustomize_directories(kustomize_directories: list[str]) -> list[str]:
+def filter_root_kustomize_directories(
+    kustomize_directories: list[str],
+    managed_directories: set[str] | None = None,
+) -> list[str]:
     """
     Keep only kustomization roots (not referenced as resources/bases/components by another
     kustomization in the same scan). Intermediate component kustomizations are composed by
     their parent `kustomize build` and should not be built in isolation.
+
+    Managed directories are directories that are managed by the kustomize runner, and is by reference passed
+    to the kubernetes runner to skip scanning for kubernetes checks.
     """
+    abs_dirs = {os.path.abspath(d) for d in kustomize_directories}
+    if managed_directories is not None:
+        managed_directories.update(abs_dirs)
+
     if len(kustomize_directories) <= 1:
         return kustomize_directories
 
-    abs_dirs = {os.path.abspath(d) for d in kustomize_directories}
     referenced: set[str] = set()
     for kustomize_dir in kustomize_directories:
         for ref in _get_kustomization_directory_refs(kustomize_dir):
@@ -887,7 +900,10 @@ def filter_root_kustomize_directories(kustomize_directories: list[str]) -> list[
 
 
 def find_kustomize_directories(
-    root_folder: str | None, files: list[str] | None, excluded_paths: list[str]
+    root_folder: str | None,
+    files: list[str] | None,
+    excluded_paths: list[str],
+    managed_directories: set[str] | None = None,
 ) -> list[str]:
     kustomize_directories = []
     if not excluded_paths:
@@ -897,8 +913,7 @@ def find_kustomize_directories(
         for file in files:
             if os.path.basename(file) in Runner.kustomizeSupportedFileTypes:
                 kustomize_directories.append(os.path.dirname(file))
-        # As individual files are provided, it's not needed to filter nested kustomization files
-        return kustomize_directories
+        return filter_root_kustomize_directories(kustomize_directories, managed_directories)
 
     if root_folder:
         for root, d_names, f_names in os.walk(root_folder):
@@ -909,4 +924,27 @@ def find_kustomize_directories(
             )
 
     kustomize_directories = filter_path_nested_kustomize_directories(kustomize_directories)
-    return filter_root_kustomize_directories(kustomize_directories)
+    return filter_root_kustomize_directories(kustomize_directories, managed_directories)
+
+
+def is_path_under_kustomize_dir(file_path: str, kustomize_dirs: set[str]) -> bool:
+    abs_path = os.path.abspath(file_path)
+    return any(
+        abs_path == kustomize_dir or abs_path.startswith(kustomize_dir + os.sep)
+        for kustomize_dir in kustomize_dirs
+    )
+
+
+def filter_kubernetes_report_for_kustomize_dirs(report: Report, kustomize_dirs: set[str]) -> None:
+    if report.check_type != CheckType.KUBERNETES or not kustomize_dirs:
+        return
+
+    report.failed_checks = [
+        record for record in report.failed_checks
+        if not is_path_under_kustomize_dir(record.file_abs_path, kustomize_dirs)
+    ]
+
+    report.passed_checks = [
+        record for record in report.passed_checks
+        if not is_path_under_kustomize_dir(record.file_abs_path, kustomize_dirs)
+    ]
