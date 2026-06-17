@@ -40,6 +40,23 @@ class TestUtils(TestCase):
         for i in range(0, len(str_values)):
             self.assertEqual(expected[i], get_referenced_vertices_in_value(str_values[i], aliases, ['aws_vpc', 'aws_instance']))
 
+    def test_preserve_resource_index_in_references(self):
+        aliases: dict = {}
+        resources_types = ['aws_s3_bucket']
+        expected_stripped = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay', 'id'], 'aws_s3_bucket.replay.id')]
+        expected_indexed = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[0]', 'id'], 'aws_s3_bucket.replay[0].id')]
+
+        self.assertEqual(
+            expected_stripped,
+            get_referenced_vertices_in_value('aws_s3_bucket.replay[0].id', aliases, resources_types),
+        )
+        self.assertEqual(
+            expected_indexed,
+            get_referenced_vertices_in_value(
+                'aws_s3_bucket.replay[0].id', aliases, resources_types, preserve_resource_index=True
+            ),
+        )
+
     def test_replace_map_attribute_access_with_dot(self):
         str_value = 'data.aws_availability_zones["available"].names[1]'
         replace_map_attribute_access_with_dot(str_value)

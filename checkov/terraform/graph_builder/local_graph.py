@@ -235,52 +235,71 @@ class TerraformLocalGraph(LocalGraph[TerraformBlock]):
                 aliases=aliases,
                 resources_types=resources_types,
             )
-            for vertex_reference in referenced_vertices:
+            indexed_referenced_vertices = get_referenced_vertices_in_value(
+                value=attribute_value,
+                aliases=aliases,
+                resources_types=resources_types,
+                preserve_resource_index=True,
+            )
+            merged_referenced_vertices: list[TerraformVertexReference] = []
+            for vertex_reference in referenced_vertices + indexed_referenced_vertices:
+                if vertex_reference not in merged_referenced_vertices:
+                    merged_referenced_vertices.append(vertex_reference)
+            for vertex_reference in merged_referenced_vertices:
                 # for certain blocks such as data and resource, the block name is composed from several parts.
                 # the purpose of the loop is to avoid not finding the node if the name has several parts
-                sub_values = [remove_index_pattern_from_str(sub_value) for sub_value in vertex_reference.sub_parts]
-                for i in range(len(sub_values)):
-                    reference_name = join_trimmed_strings(char_to_join=".", str_lst=sub_values, num_to_trim=i)
-                    source_module_object = None
-                    if self.use_new_tf_parser:
-                        source_module_object = vertex.source_module_object
-                    if referenced_modules is not None:
-                        for module in referenced_modules:
-                            referenced_module_idx = module.get("idx")
-                            referenced_module_path = module.get("path")
-                            referenced_module_object = module.get("source_module_object")
-                            if not self.use_new_tf_parser:
-                                source_module_object = referenced_module_object if source_module_object else None
-                            if referenced_module_path is None:
-                                dest_node_index = -1
-                            else:
-                                dest_node_index = self._find_vertex_index_relative_to_path(
-                                    vertex_reference.block_type, reference_name, referenced_module_path,
-                                    vertex.module_dependency,
-                                    vertex.module_dependency_num, referenced_module_idx,
-                                    source_module_object=source_module_object
-                                )
-                            self._create_edge_from_reference(attribute_key, origin_node_index, dest_node_index,
-                                                             sub_values, vertex_reference, cross_variable_edges)
-                    if vertex.module_dependency or hasattr(vertex, "source_module_object"):
-                        dest_node_index = self._find_vertex_index_relative_to_path(
-                            vertex_reference.block_type, reference_name, vertex.path, vertex.module_dependency,
-                            vertex.module_dependency_num, source_module_object=source_module_object
-                        )
-                        if dest_node_index == -1:
+                sub_values_variants = [
+                    vertex_reference.sub_parts,
+                    [remove_index_pattern_from_str(sub_value) for sub_value in vertex_reference.sub_parts],
+                ]
+                edge_created = False
+                for sub_values in sub_values_variants:
+                    if edge_created:
+                        break
+                    for i in range(len(sub_values)):
+                        reference_name = join_trimmed_strings(char_to_join=".", str_lst=sub_values, num_to_trim=i)
+                        source_module_object = None
+                        if self.use_new_tf_parser:
+                            source_module_object = vertex.source_module_object
+                        if referenced_modules is not None:
+                            for module in referenced_modules:
+                                referenced_module_idx = module.get("idx")
+                                referenced_module_path = module.get("path")
+                                referenced_module_object = module.get("source_module_object")
+                                if not self.use_new_tf_parser:
+                                    source_module_object = referenced_module_object if source_module_object else None
+                                if referenced_module_path is None:
+                                    dest_node_index = -1
+                                else:
+                                    dest_node_index = self._find_vertex_index_relative_to_path(
+                                        vertex_reference.block_type, reference_name, referenced_module_path,
+                                        vertex.module_dependency,
+                                        vertex.module_dependency_num, referenced_module_idx,
+                                        source_module_object=source_module_object
+                                    )
+                                self._create_edge_from_reference(attribute_key, origin_node_index, dest_node_index,
+                                                                 sub_values, vertex_reference, cross_variable_edges)
+                        dest_node_index = -1
+                        if vertex.module_dependency or hasattr(vertex, "source_module_object"):
                             dest_node_index = self._find_vertex_index_relative_to_path(
-                                vertex_reference.block_type, reference_name, vertex.path, vertex.path,
+                                vertex_reference.block_type, reference_name, vertex.path, vertex.module_dependency,
                                 vertex.module_dependency_num, source_module_object=source_module_object
                             )
-                    else:
-                        dest_node_index = self._find_vertex_index_relative_to_path(
-                            vertex_reference.block_type, reference_name, vertex.path, vertex.module_dependency,
-                            vertex.module_dependency_num, source_module_object=source_module_object
-                        )
-                    if dest_node_index > -1 and origin_node_index > -1:
-                        self._create_edge_from_reference(attribute_key, origin_node_index, dest_node_index, sub_values,
-                                                         vertex_reference, cross_variable_edges)
-                        break
+                            if dest_node_index == -1:
+                                dest_node_index = self._find_vertex_index_relative_to_path(
+                                    vertex_reference.block_type, reference_name, vertex.path, vertex.path,
+                                    vertex.module_dependency_num, source_module_object=source_module_object
+                                )
+                        else:
+                            dest_node_index = self._find_vertex_index_relative_to_path(
+                                vertex_reference.block_type, reference_name, vertex.path, vertex.module_dependency,
+                                vertex.module_dependency_num, source_module_object=source_module_object
+                            )
+                        if dest_node_index > -1 and origin_node_index > -1:
+                            self._create_edge_from_reference(attribute_key, origin_node_index, dest_node_index, sub_values,
+                                                             vertex_reference, cross_variable_edges)
+                            edge_created = True
+                            break
 
         if vertex.block_type == BlockType.MODULE and vertex.attributes.get('source') \
                 and isinstance(vertex.attributes['source'][0], str):
