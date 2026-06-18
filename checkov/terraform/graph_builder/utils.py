@@ -180,6 +180,25 @@ def remove_index_pattern_from_str(str_value: str) -> str:
     return str_value
 
 
+def normalize_terraform_resource_index_name(resource_name: str) -> str:
+    """Convert foo[\"0\"] style resource names to foo[0] for graph vertex lookup."""
+    return re.sub(r'\[(["\'])([^"\']+)\1\]', r'[\2]', resource_name)
+
+
+def resource_reference_lookup_variants(sub_parts: list[str]) -> list[list[str]]:
+    variants: list[list[str]] = [sub_parts]
+    stripped = [remove_index_pattern_from_str(sub_value) for sub_value in sub_parts]
+    if stripped not in variants:
+        variants.append(stripped)
+    normalized = [normalize_terraform_resource_index_name(sub_value) for sub_value in sub_parts]
+    if normalized not in variants:
+        variants.append(normalized)
+    normalized_stripped = [remove_index_pattern_from_str(s) for s in normalized]
+    if normalized_stripped not in variants:
+        variants.append(normalized_stripped)
+    return variants
+
+
 def remove_interpolation(str_value: str) -> str:
     if "${" not in str_value:
         # otherwise it can't be a string interpolation

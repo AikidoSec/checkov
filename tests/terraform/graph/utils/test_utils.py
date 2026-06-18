@@ -6,7 +6,8 @@ from checkov.common.graph.graph_builder.graph_components.attribute_names import 
 from checkov.terraform.graph_builder.graph_components.block_types import BlockType
 from checkov.terraform.graph_builder.utils import get_referenced_vertices_in_value, \
     replace_map_attribute_access_with_dot, generate_possible_strings_from_wildcards, \
-    attribute_has_nested_attributes
+    attribute_has_nested_attributes, normalize_terraform_resource_index_name, \
+    resource_reference_lookup_variants
 from checkov.terraform.graph_builder.variable_rendering.vertex_reference import TerraformVertexReference
 from checkov.terraform.graph_builder.local_graph import update_dictionary_attribute
 
@@ -56,6 +57,50 @@ class TestUtils(TestCase):
                 'aws_s3_bucket.replay[0].id', aliases, resources_types, preserve_resource_index=True
             ),
         )
+
+    def test_preserve_resource_index_in_list_and_interpolation(self):
+        aliases: dict = {}
+        resources_types = ['aws_s3_bucket']
+        expected = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[1]', 'id'], 'aws_s3_bucket.replay[1].id')]
+
+        self.assertEqual(
+            expected,
+            get_referenced_vertices_in_value(
+                ['aws_s3_bucket.replay[1].id'], aliases, resources_types, preserve_resource_index=True
+            ),
+        )
+        self.assertEqual(
+            expected,
+            get_referenced_vertices_in_value(
+                '${aws_s3_bucket.replay[1].id}', aliases, resources_types, preserve_resource_index=True
+            ),
+        )
+
+    def test_preserve_resource_index_with_quoted_index(self):
+        aliases: dict = {}
+        resources_types = ['aws_s3_bucket']
+        expected = [
+            TerraformVertexReference(
+                BlockType.RESOURCE, ['aws_s3_bucket.multi["0"]', 'id'], 'aws_s3_bucket.multi["0"].id'
+            )
+        ]
+        self.assertEqual(
+            expected,
+            get_referenced_vertices_in_value(
+                'aws_s3_bucket.multi["0"].id', aliases, resources_types, preserve_resource_index=True
+            ),
+        )
+
+    def test_normalize_terraform_resource_index_name(self):
+        self.assertEqual(
+            'aws_s3_bucket.multi[0]',
+            normalize_terraform_resource_index_name('aws_s3_bucket.multi["0"]'),
+        )
+
+    def test_resource_reference_lookup_variants(self):
+        variants = resource_reference_lookup_variants(['aws_s3_bucket.multi["0"]', 'id'])
+        self.assertIn(['aws_s3_bucket.multi[0]', 'id'], variants)
+        self.assertIn(['aws_s3_bucket.multi', 'id'], variants)
 
     def test_replace_map_attribute_access_with_dot(self):
         str_value = 'data.aws_availability_zones["available"].names[1]'

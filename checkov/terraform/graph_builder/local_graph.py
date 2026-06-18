@@ -32,6 +32,7 @@ from checkov.terraform.graph_builder.utils import (
     get_attribute_is_leaf,
     get_referenced_vertices_in_value,
     attribute_has_nested_attributes, remove_index_pattern_from_str,
+    resource_reference_lookup_variants,
 )
 from checkov.terraform.graph_builder.utils import is_local_path
 from checkov.terraform.graph_builder.variable_rendering.renderer import TerraformVariableRenderer
@@ -248,10 +249,7 @@ class TerraformLocalGraph(LocalGraph[TerraformBlock]):
             for vertex_reference in merged_referenced_vertices:
                 # for certain blocks such as data and resource, the block name is composed from several parts.
                 # the purpose of the loop is to avoid not finding the node if the name has several parts
-                sub_values_variants = [
-                    vertex_reference.sub_parts,
-                    [remove_index_pattern_from_str(sub_value) for sub_value in vertex_reference.sub_parts],
-                ]
+                sub_values_variants = resource_reference_lookup_variants(vertex_reference.sub_parts)
                 edge_created = False
                 for sub_values in sub_values_variants:
                     if edge_created:
