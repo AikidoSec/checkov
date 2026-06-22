@@ -53,6 +53,9 @@ class ALBListenerTLS12(BaseResourceCheck):
                     for redirect in force_list(redirects):
                         if redirect.get("Protocol", []) == 'HTTPS':
                             return CheckResult.PASSED
+            else:
+                # Gateway Load Balancer listeners do not support Protocol or SslPolicy (GENEVE forwarding only).
+                return CheckResult.PASSED
         return CheckResult.FAILED
 
 

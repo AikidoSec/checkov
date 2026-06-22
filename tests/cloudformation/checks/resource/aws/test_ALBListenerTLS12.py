@@ -13,7 +13,7 @@ class TestALBListenerTLS12(unittest.TestCase):
         current_dir = os.path.dirname(os.path.realpath(__file__))
 
         test_files_dir = current_dir + "/example_ALBListenerTLS12"
-        report = runner.run(root_folder=test_files_dir,runner_filter=RunnerFilter(checks=[check.id]))
+        report = runner.run(root_folder=test_files_dir, runner_filter=RunnerFilter(checks=[check.id]))
         summary = report.get_summary()
 
         passing_resources = {
@@ -23,7 +23,8 @@ class TestALBListenerTLS12(unittest.TestCase):
             'AWS::ElasticLoadBalancingV2::Listener.ListenerTLSPASSED2',
             'AWS::ElasticLoadBalancingV2::Listener.ListenerTLSPASSED3',
             'AWS::ElasticLoadBalancingV2::Listener.ListenerTCPPASSED4',
-            'AWS::ElasticLoadBalancingV2::Listener.ListenerHTTPSPASS13'
+            'AWS::ElasticLoadBalancingV2::Listener.ListenerHTTPSPASS13',
+            'AWS::ElasticLoadBalancingV2::Listener.GatewayLoadBalancerListenerPASSED',
         }
 
         failing_resources = {
