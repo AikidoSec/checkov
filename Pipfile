@@ -55,7 +55,7 @@ flake8-bugbear = {version = "==25.11.29"}
 freezegun = {version = "==1.5.5"}
 frozenlist = {version = "==1.8.0"}
 gitdb = {version = "==4.0.12"}
-gitpython = {version = "==3.1.41"}
+gitpython = {version = "==3.1.50"}
 h11 = {version = "==0.16.0"}
 httpcore = {version = "==1.0.9"}
 httpx = {version = "==0.28.1"}

@@ -59,7 +59,7 @@ setup(
             "pytest>=7,<8",
             "coverage==5.5",
             "coverage-badge",
-            "GitPython==3.1.41",
+            "GitPython==3.1.50",
             "bandit",
             "jsonschema",
         ]
@@ -101,7 +101,7 @@ setup(
         'dpath==2.1.3',
         'frozenlist==1.8.0',
         'gitdb==4.0.12',
-        'gitpython==3.1.41',
+        'gitpython==3.1.50',
         'h11==0.16.0',
         'httpcore==1.0.9',
         'httpx==0.28.1',
