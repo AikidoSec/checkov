@@ -180,6 +180,25 @@ def remove_index_pattern_from_str(str_value: str) -> str:
     return str_value
 
 
+def normalize_terraform_resource_index_name(resource_name: str) -> str:
+    """Convert foo[\"0\"] style resource names to foo[0] for graph vertex lookup."""
+    return re.sub(r'\[(["\'])([^"\']+)\1\]', r'[\2]', resource_name)
+
+
+def resource_reference_lookup_variants(sub_parts: list[str]) -> list[list[str]]:
+    variants: list[list[str]] = [sub_parts]
+    stripped = [remove_index_pattern_from_str(sub_value) for sub_value in sub_parts]
+    if stripped not in variants:
+        variants.append(stripped)
+    normalized = [normalize_terraform_resource_index_name(sub_value) for sub_value in sub_parts]
+    if normalized not in variants:
+        variants.append(normalized)
+    normalized_stripped = [remove_index_pattern_from_str(s) for s in normalized]
+    if normalized_stripped not in variants:
+        variants.append(normalized_stripped)
+    return variants
+
+
 def remove_interpolation(str_value: str) -> str:
     if "${" not in str_value:
         # otherwise it can't be a string interpolation
@@ -209,6 +228,7 @@ def get_referenced_vertices_in_value(
         value: Union[str, List[str], Dict[str, str]],
         aliases: Dict[str, Dict[str, str]],
         resources_types: List[str],
+        preserve_resource_index: bool = False,
 ) -> List[TerraformVertexReference]:
     references_vertices: "list[TerraformVertexReference]" = []
 
@@ -219,13 +239,13 @@ def get_referenced_vertices_in_value(
     if isinstance(value, list):
         for sub_value in value:
             references_vertices += get_referenced_vertices_in_value(
-                sub_value, aliases, resources_types
+                sub_value, aliases, resources_types, preserve_resource_index
             )
 
     if isinstance(value, dict):
         for sub_value in value.values():
             references_vertices += get_referenced_vertices_in_value(
-                sub_value, aliases, resources_types
+                sub_value, aliases, resources_types, preserve_resource_index
             )
 
     if isinstance(value, str):
@@ -233,6 +253,7 @@ def get_referenced_vertices_in_value(
             str_value=value,
             aliases=aliases,
             resources_types=resources_types,
+            preserve_resource_index=preserve_resource_index,
         )
 
     return references_vertices
@@ -242,6 +263,7 @@ def get_referenced_vertices_in_str_value(
     str_value: str,
     aliases: dict[str, dict[str, str]],
     resources_types: list[str],
+    preserve_resource_index: bool = False,
 ) -> list[TerraformVertexReference]:
     references_vertices: "list[TerraformVertexReference]" = []
 
@@ -258,7 +280,8 @@ def get_referenced_vertices_in_str_value(
             return references_vertices
 
         str_value = remove_function_calls_from_str(str_value=str_value)
-        str_value = remove_index_pattern_from_str(str_value=str_value)
+        if not preserve_resource_index:
+            str_value = remove_index_pattern_from_str(str_value=str_value)
         str_value = replace_map_attribute_access_with_dot(str_value=str_value)
         str_value = remove_interpolation(str_value=str_value)
 
