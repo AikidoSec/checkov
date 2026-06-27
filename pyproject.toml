@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "checkov"
-version = "2.3.347"
+version = "3.2.415"
 description = "Infrastructure as code static analysis"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -45,7 +45,7 @@ dependencies = [
     "cyclonedx-python-lib==3.1.5",
     "packageurl-python",
     "click>=8.0.0",
-    "aiohttp==3.13.3",
+    "aiohttp==3.14.1",
     "aiodns",
     "aiomultiprocess",
     "jsonschema>=4.6.0,<5.0.0",
