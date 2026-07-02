@@ -11,7 +11,7 @@ from checkov.common.graph.graph_builder.graph_components.blocks import Block
 from checkov.common.runners.graph_builder.local_graph import ObjectLocalGraph
 from checkov.common.util.consts import START_LINE, END_LINE
 from checkov.ansible.graph_builder.graph_components.resource_types import ResourceType
-from checkov.ansible.utils import get_scannable_file_paths, TASK_RESERVED_KEYWORDS, parse_file
+from checkov.ansible.utils import get_scannable_file_paths, TASK_RESERVED_KEYWORDS, parse_file, parse_inline_module_args
 from checkov.common.util.data_structures_utils import pickle_deepcopy
 
 
@@ -74,7 +74,8 @@ class AnsibleLocalGraph(ObjectLocalGraph):
             if isinstance(config, str):
                 # this happens when modules have no parameters and are directly used with the user input
                 # ex. ansible.builtin.command: cat /etc/passwd
-                config = {SELF_REFERENCE: config}
+                inline_module_args = parse_inline_module_args(config=config)
+                config = {SELF_REFERENCE: config, **inline_module_args}
             elif config is None:
                 # this happens when modules have no parameters and are passed no value
                 # ex. amazon.aws.ec2_instance_info:
