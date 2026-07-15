@@ -57,6 +57,84 @@ resource "azurerm_cognitive_account" "examplea" {
         scan_result = check.scan_resource_conf(conf=resource_conf)
         self.assertEqual(CheckResult.PASSED, scan_result)
 
+    def test_success_false_with_acls(self):
+        hcl_res = hcl2.loads("""
+            resource "azurerm_cognitive_account" "examplea" {
+              name                          = "example-account"
+              location                      = var.resource_group.location
+              resource_group_name           = var.resource_group.name
+              kind                          = "Face"
+              sku_name                      = "S0"
+              public_network_access_enabled = false
+
+              network_acls {
+                default_action = "Allow"
+                ip_rules       = []
+              }
+            }
+        """)
+        resource_conf = hcl_res['resource'][0]['azurerm_cognitive_account']['examplea']
+        scan_result = check.scan_resource_conf(conf=resource_conf)
+        self.assertEqual(CheckResult.PASSED, scan_result)
+
+    def test_success_with_network_acls_deny(self):
+        hcl_res = hcl2.loads("""
+            resource "azurerm_cognitive_account" "examplea" {
+                name                            = "example-account"
+                location                        = var.resource_group.location
+                resource_group_name             = var.resource_group.name
+                kind                            = "Face"
+                sku_name                        = "S0"
+                public_network_access_enabled   = true
+                
+                network_acls {
+                    default_action = "Deny"
+                }
+                
+            }
+        """)
+        resource_conf = hcl_res['resource'][0]['azurerm_cognitive_account']['examplea']
+        scan_result = check.scan_resource_conf(conf=resource_conf)
+        self.assertEqual(CheckResult.PASSED, scan_result)
+
+    def test_failure_with_network_acls_allow(self):
+        hcl_res = hcl2.loads("""
+            resource "azurerm_cognitive_account" "examplea" {
+                name                            = "example-account"
+                location                        = var.resource_group.location
+                resource_group_name             = var.resource_group.name
+                kind                            = "Face"
+                public_network_access_enabled   = true
+                sku_name                        = "S0"
+
+                network_acls {
+                    default_action = "Allow"
+                }
+            }
+        """)
+        resource_conf = hcl_res['resource'][0]['azurerm_cognitive_account']['examplea']
+        scan_result = check.scan_resource_conf(conf=resource_conf)
+        self.assertEqual(CheckResult.FAILED, scan_result)
+
+    def test_success_allow_action(self):
+        hcl_res = hcl2.loads("""
+            resource "azurerm_cognitive_account" "examplea" {
+              name                          = "example-account"
+              location                      = "eastus"
+              resource_group_name           = "example-rg"
+              kind                          = "Face"
+              sku_name                      = "S0"
+              public_network_access_enabled = true
+
+              network_acls {
+                default_action = "Allow"
+                ip_rules       = ["203.0.113.50"]
+              }
+            }
+        """)
+        resource_conf = hcl_res['resource'][0]['azurerm_cognitive_account']['examplea']
+        scan_result = check.scan_resource_conf(conf=resource_conf)
+        self.assertEqual(CheckResult.FAILED, scan_result)
 
 if __name__ == '__main__':
     unittest.main()
