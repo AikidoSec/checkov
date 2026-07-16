@@ -31,7 +31,7 @@ from checkov.terraform.graph_builder.graph_components.module import Module
 from checkov.terraform.graph_builder.utils import (
     get_attribute_is_leaf,
     get_referenced_vertices_in_value,
-    attribute_has_nested_attributes, remove_index_pattern_from_str,
+    attribute_has_nested_attributes,
     resource_reference_lookup_variants,
 )
 from checkov.terraform.graph_builder.utils import is_local_path
