@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,24 @@ TASK_RESERVED_KEYWORDS = {
 
 logger = logging.getLogger(__name__)
 add_resource_code_filter_to_logger(logger)
+
+
+def parse_inline_module_args(config: str) -> dict[str, str]:
+    """Parses inline Ansible key=value module arguments into a dict."""
+    parsed_args: dict[str, str] = {}
+    try:
+        tokens = shlex.split(config)
+    except ValueError:
+        return parsed_args
+
+    for token in tokens:
+        if "=" not in token:
+            continue
+        key, value = token.split("=", 1)
+        if key:
+            parsed_args[key] = value
+
+    return parsed_args
 
 
 def get_scannable_file_paths(root_folder: str | Path) -> set[Path]:
