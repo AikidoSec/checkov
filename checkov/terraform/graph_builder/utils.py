@@ -65,6 +65,7 @@ BLOCK_TYPES_STRINGS = ("var", "local", "module", "data")
 FUNC_CALL_PREFIX_PATTERN = re.compile(r"([.a-zA-Z]+)\(")
 INTERPOLATION_EXPR = re.compile(r"\$\{([^\}]*)\}")
 INDEX_PATTERN = re.compile(r"\[([0-9]+)\]")
+QUOTED_INDEX_PATTERN = re.compile(r"\[([\"'])([^\"']+)\1\]")
 MAP_ATTRIBUTE_PATTERN = re.compile(r"\[\"([^\d\W]\w*)\"\]")
 NESTED_ATTRIBUTE_PATTERN = re.compile(r"\.\d+")
 
@@ -182,7 +183,11 @@ def remove_index_pattern_from_str(str_value: str) -> str:
 
 def normalize_terraform_resource_index_name(resource_name: str) -> str:
     """Convert foo[\"0\"] style resource names to foo[0] for graph vertex lookup."""
-    return re.sub(r'\[(["\'])([^"\']+)\1\]', r'[\2]', resource_name)
+    if "[" not in resource_name:
+        # otherwise it can't have a quoted index
+        return resource_name
+
+    return QUOTED_INDEX_PATTERN.sub(r"[\2]", resource_name)
 
 
 def resource_reference_lookup_variants(sub_parts: list[str]) -> list[list[str]]:
