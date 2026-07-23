@@ -74,6 +74,26 @@ resource "aws_s3_bucket_versioning" "aws_bucket_versioning_local" {
   }
 }
 
+# Two different buckets deriving their names from the same variable.
+# Only the "-logs" bucket has versioning; the "-data" bucket must still fail.
+variable "shared_prefix" {
+}
+
+resource "aws_s3_bucket" "shared_prefix_versioned" {
+  bucket = "${var.shared_prefix}-logs"
+}
+
+resource "aws_s3_bucket_versioning" "shared_prefix_versioning" {
+  bucket = "${var.shared_prefix}-logs"
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket" "shared_prefix_unversioned" {
+  bucket = "${var.shared_prefix}-data"
+}
+
 # fail
 
 resource "aws_s3_bucket" "default" {
