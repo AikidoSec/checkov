@@ -235,18 +235,9 @@ class TerraformLocalGraph(LocalGraph[TerraformBlock]):
                 value=attribute_value,
                 aliases=aliases,
                 resources_types=resources_types,
+                include_indexed_references=True,
             )
-            indexed_referenced_vertices = get_referenced_vertices_in_value(
-                value=attribute_value,
-                aliases=aliases,
-                resources_types=resources_types,
-                preserve_resource_index=True,
-            )
-            merged_referenced_vertices: list[TerraformVertexReference] = []
-            for vertex_reference in referenced_vertices + indexed_referenced_vertices:
-                if vertex_reference not in merged_referenced_vertices:
-                    merged_referenced_vertices.append(vertex_reference)
-            for vertex_reference in merged_referenced_vertices:
+            for vertex_reference in referenced_vertices:
                 # for certain blocks such as data and resource, the block name is composed from several parts.
                 # the purpose of the loop is to avoid not finding the node if the name has several parts
                 sub_values_variants = resource_reference_lookup_variants(vertex_reference.sub_parts)

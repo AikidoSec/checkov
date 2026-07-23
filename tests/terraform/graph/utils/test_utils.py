@@ -41,44 +41,48 @@ class TestUtils(TestCase):
         for i in range(0, len(str_values)):
             self.assertEqual(expected[i], get_referenced_vertices_in_value(str_values[i], aliases, ['aws_vpc', 'aws_instance']))
 
-    def test_preserve_resource_index_in_references(self):
+    def test_include_indexed_references(self):
         aliases: dict = {}
         resources_types = ['aws_s3_bucket']
-        expected_stripped = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay', 'id'], 'aws_s3_bucket.replay.id')]
-        expected_indexed = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[0]', 'id'], 'aws_s3_bucket.replay[0].id')]
+        stripped = TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay', 'id'], 'aws_s3_bucket.replay.id')
+        indexed = TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[0]', 'id'], 'aws_s3_bucket.replay[0].id')
 
         self.assertEqual(
-            expected_stripped,
+            [stripped],
             get_referenced_vertices_in_value('aws_s3_bucket.replay[0].id', aliases, resources_types),
         )
         self.assertEqual(
-            expected_indexed,
+            [stripped, indexed],
             get_referenced_vertices_in_value(
-                'aws_s3_bucket.replay[0].id', aliases, resources_types, preserve_resource_index=True
+                'aws_s3_bucket.replay[0].id', aliases, resources_types, include_indexed_references=True
             ),
         )
 
-    def test_preserve_resource_index_in_list_and_interpolation(self):
+    def test_include_indexed_references_in_list_and_interpolation(self):
         aliases: dict = {}
         resources_types = ['aws_s3_bucket']
-        expected = [TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[1]', 'id'], 'aws_s3_bucket.replay[1].id')]
+        expected = [
+            TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay', 'id'], 'aws_s3_bucket.replay.id'),
+            TerraformVertexReference(BlockType.RESOURCE, ['aws_s3_bucket.replay[1]', 'id'], 'aws_s3_bucket.replay[1].id'),
+        ]
 
         self.assertEqual(
             expected,
             get_referenced_vertices_in_value(
-                ['aws_s3_bucket.replay[1].id'], aliases, resources_types, preserve_resource_index=True
+                ['aws_s3_bucket.replay[1].id'], aliases, resources_types, include_indexed_references=True
             ),
         )
         self.assertEqual(
             expected,
             get_referenced_vertices_in_value(
-                '${aws_s3_bucket.replay[1].id}', aliases, resources_types, preserve_resource_index=True
+                '${aws_s3_bucket.replay[1].id}', aliases, resources_types, include_indexed_references=True
             ),
         )
 
-    def test_preserve_resource_index_with_quoted_index(self):
+    def test_include_indexed_references_with_quoted_index(self):
         aliases: dict = {}
         resources_types = ['aws_s3_bucket']
+        # quoted indices are never stripped, so both pipelines agree and only one reference is returned
         expected = [
             TerraformVertexReference(
                 BlockType.RESOURCE, ['aws_s3_bucket.multi["0"]', 'id'], 'aws_s3_bucket.multi["0"].id'
@@ -87,7 +91,7 @@ class TestUtils(TestCase):
         self.assertEqual(
             expected,
             get_referenced_vertices_in_value(
-                'aws_s3_bucket.multi["0"].id', aliases, resources_types, preserve_resource_index=True
+                'aws_s3_bucket.multi["0"].id', aliases, resources_types, include_indexed_references=True
             ),
         )
 
