@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, Tuple, TYPE_CHECKING
 
 from typing_extensions import TypedDict
 
@@ -34,22 +34,24 @@ def build_s3_name_reference_edges(graph: "TerraformLocalGraph") -> None:
     resources_types = graph.get_resources_types_in_graph()
     if S3_BUCKET_RESOURCE_NAME in resources_types:
         # Find all the edges leading to S3 bucket and their references
-        s3_buckets_mapping: Dict[int, S3ConnectedResources] = {}
+        s3_buckets_mapping: Dict[Tuple[int, str], S3ConnectedResources] = {}
         for origin_node_index, referenced_vertices in graph.out_edges.items():
             vertex = graph.vertices[origin_node_index]
             if vertex.block_type != BlockType.RESOURCE:
                 continue
+            bucket_value = str(vertex.attributes.get(S3_BUCKET_REFERENCE_ATTRIBUTE))
             for referenced_vertice in referenced_vertices:
                 if referenced_vertice.label == S3_BUCKET_REFERENCE_ATTRIBUTE:
-                    current = s3_buckets_mapping.get(referenced_vertice.dest, {"bucket_resource_index": None, "referenced_vertices": list()})
+                    key = (referenced_vertice.dest, bucket_value)
+                    current = s3_buckets_mapping.get(key, {"bucket_resource_index": None, "referenced_vertices": list()})
                     if vertex.id.startswith(f"{S3_BUCKET_RESOURCE_NAME}."):
                         current["bucket_resource_index"] = origin_node_index
                     else:
                         current["referenced_vertices"].append(referenced_vertice)
-                    s3_buckets_mapping[referenced_vertice.dest] = current
+                    s3_buckets_mapping[key] = current
 
         # Create new edges of the found connections
-        for destination, mapping in s3_buckets_mapping.items():
+        for (destination, _), mapping in s3_buckets_mapping.items():
             if graph.vertices[destination].block_type in [BlockType.VARIABLE, BlockType.LOCALS]:
                 if mapping["bucket_resource_index"] is None:
                     continue
