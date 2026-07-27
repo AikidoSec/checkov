@@ -127,6 +127,20 @@ resource "azurerm_cognitive_account" "pass_dynamic_concat" {
   }
 }
 
+resource "azurerm_cognitive_account" "fail_unresolved_var_ips" {
+  name                          = "example-account"
+  location                      = "eastus"
+  resource_group_name           = "example-rg"
+  kind                          = "ComputerVision"
+  sku_name                      = "S0"
+  public_network_access_enabled = true
+
+  network_acls {
+    default_action = "Deny"
+    ip_rules       = var.undefined_whitelisted_ips
+  }
+}
+
 resource "azurerm_cognitive_account" "fail_missing_ips" {
   name                          = "example-account"
   location                      = "eastus"

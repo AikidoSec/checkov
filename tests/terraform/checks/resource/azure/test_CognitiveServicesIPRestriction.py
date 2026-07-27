@@ -38,6 +38,7 @@ class TestCognitiveServicesIPRestriction(unittest.TestCase):
             "azurerm_cognitive_account.fail_empty_var_ips",
             "azurerm_cognitive_account.fail_public_var_ips",
             "azurerm_cognitive_account.fail_dynamic_concat_public",
+            "azurerm_cognitive_account.fail_unresolved_var_ips",
         }
 
         passed_check_resources = {c.resource for c in report.passed_checks}

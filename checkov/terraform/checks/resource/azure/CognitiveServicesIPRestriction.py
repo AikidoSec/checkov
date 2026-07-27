@@ -1,8 +1,14 @@
+import re
 from checkov.common.models.enums import CheckResult, CheckCategories
 from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck
 
-OPEN_IP_RULES = ("0.0.0.0/0", "::/0", "*")
+OPEN_IP_RULES = {
+    "0.0.0.0/0", "::/0", "*",
+    "0.0.0.0/1", "128.0.0.0/1",
+    "::0/0", "0::0/0", "0:0:0:0:0:0:0:0/0"
+}
 
+UNRESOLVED_VAR_PATTERN = re.compile(r"^(?:\$\{)?[a-zA-Z][a-zA-Z0-9_-]*\.[^}()]+(?:})?$")
 
 class CognitiveServicesIPRestriction(BaseResourceCheck):
     def __init__(self) -> None:
@@ -18,52 +24,49 @@ class CognitiveServicesIPRestriction(BaseResourceCheck):
             return CheckResult.PASSED
 
         network_acls = conf.get("network_acls")
-        if network_acls and isinstance(network_acls, list):
-            acl = network_acls[0]
-            default_action = acl.get("default_action", [""])[0]
+        # If network ACLs are completely missing we return PASSED as CKV_AZURE_134 will already flag it as FAILED
+        if not network_acls:
+            return CheckResult.PASSED
+        if not isinstance(network_acls, list) or not isinstance(network_acls[0], dict):
+            return CheckResult.UNKNOWN
 
-            if isinstance(default_action, str) and default_action.lower() == "deny":
-                ip_rules = self._normalize_ip_rules(acl.get("ip_rules"))
-                if self._has_specific_ip_rules(ip_rules):
-                    return CheckResult.PASSED
+        acl = network_acls[0]
+        default_action = acl.get("default_action")
+        # Defer missing default_action to CKV_AZURE_134
+        if not default_action:
+            return CheckResult.PASSED
 
+        if not isinstance(default_action, list):
+            return CheckResult.UNKNOWN
+            
+        # Defer non-Deny actions to CKV_AZURE_134
+        if str(default_action[0]).lower() != "deny":
+            return CheckResult.PASSED
+
+        ip_rules = acl.get("ip_rules", [])
+        
+        if isinstance(ip_rules, str):
+            ip_rules = [ip_rules]
+        elif ip_rules and isinstance(ip_rules, list) and isinstance(ip_rules[0], list):
+            ip_rules = ip_rules[0]
+
+        if not isinstance(ip_rules, list):
+            return CheckResult.UNKNOWN
+
+        valid_ips = [str(ip).strip() for ip in ip_rules if ip]
+
+        if not valid_ips:
+            return CheckResult.FAILED
+
+        for ip in valid_ips:
+            if ip.lower() in OPEN_IP_RULES:
+                return CheckResult.FAILED
+            
+            # Fails if the rule is an unresolved terraform variable (e.g. "var.my_ips" or "${var.my_ips}")
+            if UNRESOLVED_VAR_PATTERN.match(ip):
                 return CheckResult.FAILED
 
-        # If network ACLs are completely missing we return PASSED as CKV_AZURE_134 will already flag it as FAILED
         return CheckResult.PASSED
-
-    @staticmethod
-    def _normalize_ip_rules(ip_rules):
-        # [["1.2.3.4"]] or ["${var.x}"] / ["${concat(...)}"] -> ["1.2.3.4", "5.6.7.8"]
-        if not ip_rules or not isinstance(ip_rules, list):
-            return ip_rules
-
-        if len(ip_rules) == 1:
-            only = ip_rules[0]
-            if isinstance(only, list):
-                return only
-            if isinstance(only, str) and ("${" in only or only.startswith(("concat(", "tolist(", "compact(", "var."))):
-                return only
-
-        return ip_rules
-
-    @staticmethod
-    def _has_specific_ip_rules(ip_rules) -> bool:
-        if not ip_rules:
-            return False
-
-        if isinstance(ip_rules, list):
-            specific_ips = [ip for ip in ip_rules if isinstance(ip, str) and ip]
-            if not specific_ips:
-                return False
-            if any(ip.lower() in OPEN_IP_RULES for ip in specific_ips):
-                return False
-            return True
-
-        if isinstance(ip_rules, str):
-            return ip_rules.lower() not in OPEN_IP_RULES
-
-        return False
 
 
 check = CognitiveServicesIPRestriction()
