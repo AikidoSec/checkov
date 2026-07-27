@@ -1,4 +1,3 @@
-import re
 from checkov.common.models.enums import CheckResult, CheckCategories
 from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck
 
@@ -7,10 +6,6 @@ OPEN_IP_RULES = {
     "0.0.0.0/1", "128.0.0.0/1",
     "::0/0", "0::0/0", "0:0:0:0:0:0:0:0/0"
 }
-
-UNRESOLVED_VAR_PATTERN = re.compile(r"^(?:\$\{)?var\.[^}()]+(?:})?$")
-
-UNRESOLVED_REF_PATTERN = re.compile(r"^(?:\$\{)?[a-zA-Z][a-zA-Z0-9_-]*\.[^}()]+(?:})?$")
 
 
 class CognitiveServicesIPRestriction(BaseResourceCheck):
@@ -66,9 +61,14 @@ class CognitiveServicesIPRestriction(BaseResourceCheck):
         for ip in valid_ips:
             if ip.lower() in OPEN_IP_RULES:
                 return CheckResult.FAILED
-            if UNRESOLVED_VAR_PATTERN.match(ip):
+            norm_ip = ip
+            if norm_ip.startswith("${") and norm_ip.endswith("}"):
+                norm_ip = norm_ip[2:-1].strip()
+
+            if norm_ip.startswith("var.") and "(" not in norm_ip:
                 return CheckResult.FAILED
-            if UNRESOLVED_REF_PATTERN.match(ip):
+                
+            if norm_ip and norm_ip[0].isalpha() and "." in norm_ip and "(" not in norm_ip:
                 has_unknown_reference = True
 
         if has_unknown_reference:
