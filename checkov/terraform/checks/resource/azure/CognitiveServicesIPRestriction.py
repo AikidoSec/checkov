@@ -8,7 +8,10 @@ OPEN_IP_RULES = {
     "::0/0", "0::0/0", "0:0:0:0:0:0:0:0/0"
 }
 
-UNRESOLVED_VAR_PATTERN = re.compile(r"^(?:\$\{)?[a-zA-Z][a-zA-Z0-9_-]*\.[^}()]+(?:})?$")
+UNRESOLVED_VAR_PATTERN = re.compile(r"^(?:\$\{)?var\.[^}()]+(?:})?$")
+
+UNRESOLVED_REF_PATTERN = re.compile(r"^(?:\$\{)?[a-zA-Z][a-zA-Z0-9_-]*\.[^}()]+(?:})?$")
+
 
 class CognitiveServicesIPRestriction(BaseResourceCheck):
     def __init__(self) -> None:
@@ -58,13 +61,18 @@ class CognitiveServicesIPRestriction(BaseResourceCheck):
         if not valid_ips:
             return CheckResult.FAILED
 
+        has_unknown_reference = False
+
         for ip in valid_ips:
             if ip.lower() in OPEN_IP_RULES:
                 return CheckResult.FAILED
-            
-            # Fails if the rule is an unresolved terraform variable (e.g. "var.my_ips" or "${var.my_ips}")
             if UNRESOLVED_VAR_PATTERN.match(ip):
                 return CheckResult.FAILED
+            if UNRESOLVED_REF_PATTERN.match(ip):
+                has_unknown_reference = True
+
+        if has_unknown_reference:
+            return CheckResult.UNKNOWN
 
         return CheckResult.PASSED
 
