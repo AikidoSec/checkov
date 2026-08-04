@@ -31,6 +31,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: imranismail/setup-kustomize@a76db1c6419124d51470b1e388c4b29476f495f1  # v2
         with:
+          kustomize-version: '5.8.1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install pipenv run python -m pip install --upgrade pip setuptools wheelpipenv
         run: |
@@ -73,6 +74,7 @@ jobs:
         if: ${{ runner.os != 'windows' }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          kustomize-version: '5.8.1'
       - name: Install pipenv
         run: |
           python -m pip install --no-cache-dir --upgrade pipenv
@@ -124,6 +126,7 @@ jobs:
       - uses: imranismail/setup-kustomize@a76db1c6419124d51470b1e388c4b29476f495f1  # v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          kustomize-version: '5.8.1'
       - name: Install pipenv
         run: |
           python -m pip install --no-cache-dir --upgrade pipenv
