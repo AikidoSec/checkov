@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: win-daemonset-beta-os
+spec:
+  selector:
+    matchLabels:
+      app: win-ds
+  template:
+    metadata:
+      labels:
+        app: win-ds
+    spec:
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      nodeSelector:
+        beta.kubernetes.io/os: windows

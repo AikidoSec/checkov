@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runtimeclass-windows-still-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: runtime-win
+  template:
+    metadata:
+      labels:
+        app: runtime-win
+    spec:
+      runtimeClassName: windows-2019
+      containers:
+        - name: app
+          image: mcr.microsoft.com/windows/servercore:ltsc2019

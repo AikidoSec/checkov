@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linux-nodeselector-still-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: linux-app
+  template:
+    metadata:
+      labels:
+        app: linux-app
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        - name: app
+          image: busybox:1.36

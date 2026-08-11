@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: win-statefulset-affinity
+spec:
+  serviceName: win-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: win-sts
+  template:
+    metadata:
+      labels:
+        app: win-sts
+    spec:
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - windows

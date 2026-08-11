@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 
 from checkov.common.models.enums import CheckCategories, CheckResult
 from checkov.kubernetes.checks.resource.base_spec_check import BaseK8Check
+from checkov.kubernetes.checks.resource.k8s.k8s_check_utils import is_windows_pod_spec
 from checkov.kubernetes.checks.resource.registry import registry
 
 
@@ -32,6 +33,7 @@ class BaseK8sContainerCheck(BaseK8Check):
         supported_entities: Optional["Iterable[str]"] = None,
         supported_container_types: Optional["Iterable[str]"] = None,
         guideline: Optional[str] = None,
+        skip_windows_workloads: bool = False,
     ) -> None:
         categories = categories or [CheckCategories.KUBERNETES]
         supported_entities = supported_entities or BaseK8sContainerCheck.SUPPORTED_ENTITIES
@@ -45,6 +47,7 @@ class BaseK8sContainerCheck(BaseK8Check):
         )
         self.supported_container_types = supported_container_types or ("containers", "initContainers")
         self.evaluated_container_keys: List[str] = []
+        self.skip_windows_workloads = skip_windows_workloads
 
         registry.register(self)
 
@@ -84,6 +87,9 @@ class BaseK8sContainerCheck(BaseK8Check):
                 return CheckResult.UNKNOWN
         else:
             logging.info(f"entity type {self.entity_type} not supported")
+            return CheckResult.UNKNOWN
+
+        if self.skip_windows_workloads and is_windows_pod_spec(spec):
             return CheckResult.UNKNOWN
 
         containers: List[Dict[str, Any]] = (
