@@ -31,12 +31,13 @@ def is_windows_pod_spec(spec: Any) -> bool:
     """Return True when the pod spec strongly and exclusively targets Windows."""
     if not isinstance(spec, dict):
         return False
-
-    return (
-        _has_windows_os_name(spec)
-        or _has_windows_node_selector(spec)
-        or _has_windows_required_node_affinity(spec)
-    )
+    if _has_windows_os_name(spec):
+        return True
+    if _has_windows_node_selector(spec):
+        return True
+    if _has_windows_required_node_affinity(spec):
+        return True
+    return False
 
 
 def _has_windows_os_name(spec: dict[str, Any]) -> bool:
