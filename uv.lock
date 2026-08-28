@@ -522,7 +522,7 @@ requires-dist = [
     { name = "policyuniverse" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "prettytable", specifier = "==3.16.0" },
-    { name = "pycep-parser", git = "https://github.com/AikidoSec/pycep?tag=0.6.1.1" },
+    { name = "pycep-parser", git = "https://github.com/AikidoSec/pycep?rev=0ccebe878712b6a0ff27edb7da2fb6d01b574d5a" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==7.4.4" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
@@ -1527,7 +1527,7 @@ wheels = [
 [[package]]
 name = "pycep-parser"
 version = "0.6.1.dev9"
-source = { git = "https://github.com/AikidoSec/pycep?tag=0.6.1.1#0ccebe878712b6a0ff27edb7da2fb6d01b574d5a" }
+source = { git = "https://github.com/AikidoSec/pycep?rev=0ccebe878712b6a0ff27edb7da2fb6d01b574d5a#0ccebe878712b6a0ff27edb7da2fb6d01b574d5a" }
 dependencies = [
     { name = "lark" },
     { name = "regex" },

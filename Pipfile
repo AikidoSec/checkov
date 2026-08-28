@@ -101,7 +101,7 @@ pre-commit = {version = "==4.5.1"}
 prettytable = {version = "==3.16.0"}
 propcache = {version = "==0.4.1"}
 pycares = {version = "==5.0.1"}
-pycep-parser = {git = "https://github.com/AikidoSec/pycep.git", ref = "0.6.1.1"}
+pycep-parser = {git = "https://github.com/AikidoSec/pycep.git", ref = "0ccebe878712b6a0ff27edb7da2fb6d01b574d5a"}
 pycodestyle = {version = "==2.14.0"}
 pycparser = {version = "==3.0", markers = "implementation_name != 'PyPy'"}
 pydantic = {version = "==2.12.5"}

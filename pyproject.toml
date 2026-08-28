@@ -50,7 +50,7 @@ dependencies = [
     "aiomultiprocess",
     "jsonschema>=4.6.0,<5.0.0",
     "prettytable==3.16.0",
-    "pycep-parser @ git+https://github.com/AikidoSec/pycep.git@0.6.1.1",
+    "pycep-parser @ git+https://github.com/AikidoSec/pycep.git@0ccebe878712b6a0ff27edb7da2fb6d01b574d5a",
     "charset-normalizer",
     "schema",
     "requests>=2.27.0",
@@ -101,4 +101,4 @@ dev = [
 exclude = ["dogfood_tests*", "flake8_plugins*", "integration_tests*", "performance_tests*", "tests*"]
 
 [tool.uv.sources]
-pycep-parser = { git = "https://github.com/AikidoSec/pycep", tag = "0.6.1.1" }
+pycep-parser = { git = "https://github.com/AikidoSec/pycep", rev = "0ccebe878712b6a0ff27edb7da2fb6d01b574d5a" }
