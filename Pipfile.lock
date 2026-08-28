@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1a23463151303896aac3f8859d9b51f163e0bf79821f597bc6ccdb365125672a"
+            "sha256": "a6c143a856129da3e84e52558e10cd4b2b2eb68030fd04427f044c3586f8010d"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -639,7 +639,6 @@
                 "sha256:f0b278ce10936db1a37e6954e15a3730bea96a0997c26d7fee88e6c396c2086d",
                 "sha256:f11642dddbb0253cc8853254301b51390ba0081750a8ac03f20ea8103f0c56b6"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4' and python_version < '4'",
             "version": "==5.5"
         },
         "coverage-badge": {
@@ -2047,12 +2046,8 @@
             "version": "==5.0.1"
         },
         "pycep-parser": {
-            "hashes": [
-                "sha256:76916d243d7e0bd5d3ffe2f0be9b8b2d2a1e04ecadb71587c83f0df91cee2bb1",
-                "sha256:bf37829ab0154fdca10a802a3c8097dbb01180c4df4e3de6a190cbe90b7ed3c3"
-            ],
-            "markers": "python_version >= '3.9'",
-            "version": "==0.6.1"
+            "git": "https://github.com/AikidoSec/pycep.git",
+            "ref": "0ccebe878712b6a0ff27edb7da2fb6d01b574d5a"
         },
         "pycodestyle": {
             "hashes": [
