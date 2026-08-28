@@ -522,7 +522,7 @@ requires-dist = [
     { name = "policyuniverse" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "prettytable", specifier = "==3.16.0" },
-    { name = "pycep-parser", specifier = "==0.6.1" },
+    { name = "pycep-parser", git = "https://github.com/AikidoSec/pycep?tag=0.6.1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==7.4.4" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
@@ -1526,16 +1526,12 @@ wheels = [
 
 [[package]]
 name = "pycep-parser"
-version = "0.6.1"
-source = { registry = "https://pypi.org/simple" }
+version = "0.6.1.dev9"
+source = { git = "https://github.com/AikidoSec/pycep?tag=0.6.1.1#0ccebe878712b6a0ff27edb7da2fb6d01b574d5a" }
 dependencies = [
     { name = "lark" },
     { name = "regex" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/3e/cb74fa8f0a4010e9fcc51fd0d937fe2077a3e8c7b449fba9215382f7d6bc/pycep_parser-0.6.1.tar.gz", hash = "sha256:bf37829ab0154fdca10a802a3c8097dbb01180c4df4e3de6a190cbe90b7ed3c3", size = 67112, upload-time = "2025-11-23T14:08:44.477Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/d0/7088819353b7bd08e50d8bb9743c18fd8dfc2098bdf1e7e1bd1b6ae6e9ab/pycep_parser-0.6.1-py3-none-any.whl", hash = "sha256:76916d243d7e0bd5d3ffe2f0be9b8b2d2a1e04ecadb71587c83f0df91cee2bb1", size = 24715, upload-time = "2025-11-23T14:08:43.388Z" },
 ]
 
 [[package]]

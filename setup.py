@@ -130,7 +130,7 @@ setup(
         'prettytable==3.16.0',
         'propcache==0.4.1',
         'pycares==5.0.1',
-        'pycep-parser==0.6.1',
+        'pycep-parser @ git+https://github.com/AikidoSec/pycep.git@0.6.1.1',
         "pycparser==3.0 ; implementation_name != 'PyPy'",
         'pydantic==2.12.5',
         'pydantic-core==2.41.5',
