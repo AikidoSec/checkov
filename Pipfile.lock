@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a6c143a856129da3e84e52558e10cd4b2b2eb68030fd04427f044c3586f8010d"
+            "sha256": "cbf8d63a11ecd6ed3a24a08b36f37d5a5779cf6c7606bc222574e0671e2b1dcf"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -246,12 +246,8 @@
             "version": "==1.5.9"
         },
         "bc-python-hcl2": {
-            "hashes": [
-                "sha256:15bfecbae882ead998dd9300737237a14e40dfd8c973e5c7de7b4c92040a010f",
-                "sha256:ab72880dd58689a4ee9a47f229788311a2b4d607fe034a819a40a63dab432644"
-            ],
-            "markers": "python_version >= '3.7'",
-            "version": "==0.3.51"
+            "git": "https://github.com/AikidoSec/python-hcl2.git",
+            "ref": "67204975097ebd67d42b796239615e840b1eb637"
         },
         "beautifulsoup4": {
             "hashes": [

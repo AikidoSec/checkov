@@ -200,14 +200,10 @@ wheels = [
 
 [[package]]
 name = "bc-python-hcl2"
-version = "0.3.51"
-source = { registry = "https://pypi.org/simple" }
+version = "0.4.4"
+source = { git = "https://github.com/AikidoSec/python-hcl2?rev=67204975097ebd67d42b796239615e840b1eb637#67204975097ebd67d42b796239615e840b1eb637" }
 dependencies = [
     { name = "lark" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/83/30/23d56ecb6c572f84abd506a8af9e03fcccd69d342e7eafd25688d0ba46c1/bc-python-hcl2-0.3.51.tar.gz", hash = "sha256:15bfecbae882ead998dd9300737237a14e40dfd8c973e5c7de7b4c92040a010f", size = 11995, upload-time = "2022-11-28T14:42:42.002Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/55/dab1bf44f7c5ac45226ea76c782e21f9305e9b04ae61dbc0c5242696307d/bc_python_hcl2-0.3.51-py3-none-any.whl", hash = "sha256:ab72880dd58689a4ee9a47f229788311a2b4d607fe034a819a40a63dab432644", size = 14943, upload-time = "2022-11-28T14:42:40.422Z" },
 ]
 
 [[package]]
@@ -483,7 +479,7 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'dev'" },
     { name = "bc-detect-secrets", specifier = "==1.4.29" },
     { name = "bc-jsonpath-ng", specifier = "==1.5.9" },
-    { name = "bc-python-hcl2", specifier = "==0.3.51" },
+    { name = "bc-python-hcl2", git = "https://github.com/AikidoSec/python-hcl2?rev=67204975097ebd67d42b796239615e840b1eb637" },
     { name = "boto3", specifier = ">=1.17" },
     { name = "boto3-stubs-lite", extras = ["s3"], marker = "extra == 'dev'" },
     { name = "cachetools" },
