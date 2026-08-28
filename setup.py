@@ -77,7 +77,7 @@ setup(
         'attrs==25.4.0',
         'bc-detect-secrets==1.4.29',
         'bc-jsonpath-ng==1.5.9',
-        'bc-python-hcl2==0.3.51',
+        'bc-python-hcl2 @ git+https://github.com/AikidoSec/python-hcl2.git@67204975097ebd67d42b796239615e840b1eb637',
         'beautifulsoup4==4.14.3',
         'boolean-py==5.0',
         'boto3==1.42.63',
