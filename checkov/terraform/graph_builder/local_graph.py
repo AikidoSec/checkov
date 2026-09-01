@@ -20,6 +20,7 @@ from checkov.common.util.data_structures_utils import pickle_deepcopy
 from checkov.common.util.parser_utils import get_abs_path, get_tf_definition_key_from_module_dependency
 from checkov.common.util.type_forcers import force_int
 from checkov.terraform.graph_builder.foreach.builder import ForeachBuilder
+from checkov.terraform.graph_builder.s3_edges import build_s3_name_reference_edges
 from checkov.terraform.graph_builder.variable_rendering.vertex_reference import TerraformVertexReference
 from checkov.terraform.modules.module_objects import TFModule
 from checkov.terraform.checks.utils.dependency_path_handler import unify_dependency_path
@@ -96,6 +97,7 @@ class TerraformLocalGraph(LocalGraph[TerraformBlock]):
                 edges_count = len(self.edges)
                 self._build_cross_variable_edges()
                 logging.info(f"Found {len(self.edges) - edges_count} cross variable edges")
+            build_s3_name_reference_edges(self)
 
     def _create_vertices(self) -> None:
         logging.info("Creating vertices")

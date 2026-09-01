@@ -41,6 +41,59 @@ resource "aws_s3_bucket" "legacy_syntax" {
   }
 }
 
+# Reference by name
+variable "bucket_name" {
+}
+
+resource "aws_s3_bucket" "ref_by_name" {
+  bucket = var.bucket_name
+}
+
+resource "aws_s3_bucket_versioning" "aws_bucket_versioning" {
+  bucket = var.bucket_name
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+variable "bucket_name_2" {
+}
+
+locals {
+  bucketName = var.bucket_name_2
+}
+
+resource "aws_s3_bucket" "ref_by_name_local" {
+  bucket = local.bucketName
+}
+
+resource "aws_s3_bucket_versioning" "aws_bucket_versioning_local" {
+  bucket = local.bucketName
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Two different buckets deriving their names from the same variable.
+# Only the "-logs" bucket has versioning; the "-data" bucket must still fail.
+variable "shared_prefix" {
+}
+
+resource "aws_s3_bucket" "shared_prefix_versioned" {
+  bucket = "${var.shared_prefix}-logs"
+}
+
+resource "aws_s3_bucket_versioning" "shared_prefix_versioning" {
+  bucket = "${var.shared_prefix}-logs"
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket" "shared_prefix_unversioned" {
+  bucket = "${var.shared_prefix}-data"
+}
+
 # fail
 
 resource "aws_s3_bucket" "default" {
