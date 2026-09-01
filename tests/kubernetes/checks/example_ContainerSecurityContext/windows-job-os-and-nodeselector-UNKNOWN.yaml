@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: win-job-combined
+spec:
+  template:
+    metadata:
+      labels:
+        app: win-job
+    spec:
+      os:
+        name: windows
+      restartPolicy: Never
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      nodeSelector:
+        kubernetes.io/os: windows

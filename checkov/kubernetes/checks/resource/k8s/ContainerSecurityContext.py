@@ -8,10 +8,9 @@ class ContainerSecurityContext(BaseK8sContainerCheck):
     def __init__(self) -> None:
         # CIS-1.5 5.7.3
         name = "Apply security context to your containers"
-        # Security context can be set at pod or container level.
         # Location: container .securityContext
         id = "CKV_K8S_30"
-        super().__init__(name=name, id=id)
+        super().__init__(name=name, id=id, skip_windows_workloads=True)
 
     def scan_container_conf(self, metadata: Dict[str, Any], conf: Dict[str, Any]) -> CheckResult:
         self.evaluated_container_keys = ["securityContext"]
