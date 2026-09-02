@@ -238,7 +238,7 @@ data "aws_iam_policy_document" "pass_kms_case_insensitive" {
   }
 }
 
-data "aws_iam_policy_document" "kms_not_actions" {
+data "aws_iam_policy_document" "fail_kms_not_actions" {
   statement {
     principals {
       type        = "AWS"

@@ -39,7 +39,7 @@ class ResourcePolicyDocument(BaseTerraformCloudsplainingDataIAMCheck):
                 # only resource policies can define principals, identity policies can't
                 if not (statement.get("principals") or statement.get("not_principals")):
                     return False
-                actions = statement.get("actions") or statement.get("not_actions")
+                actions = statement.get("actions")
                 if not actions:
                     return False
                 if not all(

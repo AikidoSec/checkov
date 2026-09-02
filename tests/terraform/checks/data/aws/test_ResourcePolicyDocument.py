@@ -23,7 +23,6 @@ class TestResourcePolicyDocument(unittest.TestCase):
             "aws_iam_policy_document.pass_kms_key_policy_resource",
             "aws_iam_policy_document.pass_kms_not_principals",
             "aws_iam_policy_document.pass_kms_case_insensitive",
-            "aws_iam_policy_document.kms_not_actions",
         }
         failing_resources = {
             "aws_iam_policy_document.fail",
@@ -31,6 +30,7 @@ class TestResourcePolicyDocument(unittest.TestCase):
             "aws_iam_policy_document.fail_non_kms_resource_policy",
             "aws_iam_policy_document.fail_kms_mixed_actions",
             "aws_iam_policy_document.fail_kms_global_wildcard",
+            "aws_iam_policy_document.fail_kms_not_actions",
         }
 
         passed_check_resources = {c.resource for c in report.passed_checks}
