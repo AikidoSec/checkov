@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 add_resource_code_filter_to_logger(logger)
 
+# Helm built-in variables and control structures, e.g. '{{ .Values.foo }}' or '{{- if .Values.enabled }}'.
+# Plain CI/CD placeholders like '{{timestamp}}' deliberately don't match, so those files are still scanned.
+HELM_TEMPLATE_PATTERN = re.compile(r"\{\{-?\s*(?:\.Release\.|\.Values\.|if\s|end\s|with\s)")
+
 
 def loads(content: str) -> List[Dict[str, Any]]:
     """
@@ -37,17 +41,13 @@ def load(filename: Path) -> Tuple[List[Dict[str, Any]], List[Tuple[int, str]]]:
     """
     Load the given YAML file
     """
-    helm_template_patterns = [r"\{\{-?\s*\.Release\.", r"\{\{-?\s*\.Values\.",
-                              r"\{\{-?\s*if\s", r"\{\{-?\s*end\s", r"\{\{-?\s*with\s"]
-
     content = read_file_with_any_encoding(file_path=filename)
 
     if not all(key in content for key in ("apiVersion", "kind")):
         return [{}], []
 
-    for pattern in helm_template_patterns:
-        if re.search(pattern, content):
-            return [{}], []
+    if HELM_TEMPLATE_PATTERN.search(content):
+        return [{}], []
 
     file_lines = [(idx + 1, line) for idx, line in enumerate(content.splitlines(keepends=True))]
 
