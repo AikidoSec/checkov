@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Hashable
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, TYPE_CHECKING
@@ -16,6 +17,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 add_resource_code_filter_to_logger(logger)
+
+# Helm built-in variables and control structures, e.g. '{{ .Values.foo }}' or '{{- if .Values.enabled }}'.
+# Plain CI/CD placeholders like '{{timestamp}}' deliberately don't match, so those files are still scanned.
+HELM_TEMPLATE_PATTERN = re.compile(r"\{\{-?\s*(?:\.Release\.|\.Values\.|if\s|end\s|with\s)")
 
 
 def loads(content: str) -> List[Dict[str, Any]]:
@@ -36,13 +41,12 @@ def load(filename: Path) -> Tuple[List[Dict[str, Any]], List[Tuple[int, str]]]:
     """
     Load the given YAML file
     """
-
     content = read_file_with_any_encoding(file_path=filename)
 
     if not all(key in content for key in ("apiVersion", "kind")):
         return [{}], []
 
-    if '{{' in content:
+    if HELM_TEMPLATE_PATTERN.search(content):
         return [{}], []
 
     file_lines = [(idx + 1, line) for idx, line in enumerate(content.splitlines(keepends=True))]

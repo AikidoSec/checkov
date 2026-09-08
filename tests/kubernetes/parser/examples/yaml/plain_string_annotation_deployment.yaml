@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ear-api
+  annotations:
+    force-redeploy: "manual"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ear-api
+  template:
+    metadata:
+      labels:
+        app: ear-api
+    spec:
+      containers:
+        - name: ear-api
+          image: ear-api:1.0.0
