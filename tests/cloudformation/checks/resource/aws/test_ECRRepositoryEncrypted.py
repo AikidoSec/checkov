@@ -24,18 +24,19 @@ class TestECRRepositoryEncrypted(unittest.TestCase):
 
         passing_resources = {
             "AWS::ECR::Repository.KMSEncryption",
-            "AWS::ECR::Repository.AES256Encryption"
+            "AWS::ECR::Repository.KMSDSSEEncryption",
         }
 
         failing_resources = {
-            "AWS::ECR::Repository.NoEncryption"
+            "AWS::ECR::Repository.AES256Encryption",
+            "AWS::ECR::Repository.DefaultEncryption",
         }
 
         passed_check_resources = set([c.resource for c in report.passed_checks])
         failed_check_resources = set([c.resource for c in report.failed_checks])
 
         self.assertEqual(summary['passed'], 2)
-        self.assertEqual(summary['failed'], 1)
+        self.assertEqual(summary['failed'], 2)
         self.assertEqual(summary['skipped'], 0)
         self.assertEqual(summary['parsing_errors'], 0)
         self.assertEqual(passing_resources, passed_check_resources)

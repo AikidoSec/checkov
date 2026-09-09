@@ -17,8 +17,8 @@ class GenericResourceEncryption(GenericResourceEncryptionBase):
             resource_type, attribute_values_map, enabled_by_default, node_to_node_encryption="node_to_node_encryption"
         )
         if self.resource_type.startswith("aws_"):
-            if self.resource_type == "aws_s3_bucket":
-                # for s3 buckets the default is SSE-S3 which uses AES256
+            if self.resource_type in {"aws_ecr_repository", "aws_s3_bucket"}:
+                # ECR repositories and S3 buckets use SSE-S3 with AES256 by default.
                 self.default_description = EncryptionTypes.AES256.value
             else:
                 self.default_description = EncryptionTypes.DEFAULT_KMS.value
@@ -33,6 +33,7 @@ ENCRYPTION_BY_RESOURCE_TYPE: Dict[str, Any] = {
             "encryption_configuration.encryption_type": [EncryptionTypes.AES256.value, EncryptionTypes.KMS_VALUE.value],
             "encryption_configuration.kms_key": get_empty_list_str(),
         },
+        enabled_by_default=True,
     ),
     "aws_neptune_cluster": GenericResourceEncryption(
         "aws_neptune_cluster", {"storage_encrypted": [True], "kms_key_arn": get_empty_list_str()}
