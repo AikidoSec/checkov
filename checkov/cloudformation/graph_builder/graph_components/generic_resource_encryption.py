@@ -32,7 +32,7 @@ ENCRYPTION_BY_RESOURCE_TYPE: dict[str, GenericResourceEncryption] = {
             "EncryptionConfiguration.EncryptionType": [
                 EncryptionTypes.AES256.value,
                 EncryptionTypes.KMS_VALUE.value,
-                "KMS_DSSE",
+                EncryptionTypes.KMS_DSSE.value,
             ],
             "EncryptionConfiguration.KmsKey": get_empty_list_str(),
         },
