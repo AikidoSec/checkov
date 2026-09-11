@@ -10,8 +10,16 @@
                 }
             }
         },
-        "UnencryptedECRRepository": {
+        "EncryptedDefaultECRRepository": {
             "Type": "AWS::ECR::Repository"
+        },
+        "EncryptedKMSDSSEECRRepository": {
+            "Type": "AWS::ECR::Repository",
+            "Properties": {
+                "EncryptionConfiguration": {
+                    "EncryptionType": "KMS_DSSE"
+                }
+            }
         },
         "EncryptedNeptunDBCluster": {
             "Type": "AWS::Neptune::DBCluster",
