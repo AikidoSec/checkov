@@ -178,11 +178,11 @@ def replace_string_value(original_str: Any, str_to_replace: str, replaced_value:
         return original_str if keep_origin else str_to_replace
 
     if isinstance(replaced_value, str):
-        for quoted_interp in (f"'${{{str_to_replace}}}'", f'"${{{str_to_replace}}}"'):
-            if quoted_interp in original_str:
-                original_str = original_str.replace(quoted_interp, repr(replaced_value))
-        if str_to_replace not in original_str:
-            return original_str
+        quoted_interp = f"'${{{str_to_replace}}}'"
+        if quoted_interp in original_str:
+            original_str = original_str.replace(quoted_interp, repr(replaced_value))
+            if str_to_replace not in original_str:
+                return original_str
 
     string_without_interpolation = remove_interpolation(original_str, str_to_replace, escape_unrendered=False)
     if (isinstance(replaced_value, (list, dict)) and not str_to_replace.startswith('"')):
