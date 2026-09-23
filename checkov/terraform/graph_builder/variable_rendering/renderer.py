@@ -125,6 +125,7 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
         origin_val = modified_vertex_attributes.get(edge.label, "")
         val_to_eval = pickle_deepcopy(origin_val)
         first_key_path = None
+        null_compare_rewritten = False
 
         if referenced_vertices:
             for edge in edge_list:
@@ -140,9 +141,20 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                 evaluated_attribute_value = self.extract_value_from_vertex(
                     key_path_in_dest_vertex, dest_vertex_attributes
                 )
+                if (
+                    dest_vertex_attributes.get(CustomAttributes.BLOCK_TYPE) in (BlockType.VARIABLE, BlockType.TF_VARIABLE)
+                    and "default" in dest_vertex_attributes
+                    and dest_vertex_attributes.get("default") is None
+                ):
+                    rewritten = evaluator.replace_null_compare_operands(val_to_eval, replaced_key)
+                    if rewritten != val_to_eval:
+                        null_compare_rewritten = True
+                        val_to_eval = rewritten
                 if evaluated_attribute_value is not None:
                     val_to_eval = self.replace_value(edge, val_to_eval, replaced_key, evaluated_attribute_value, True)
                 if not multiple_edges and val_to_eval != origin_val:
+                    if null_compare_rewritten:
+                        val_to_eval = evaluator.unwrap_rendered_comparison(val_to_eval)
                     self.update_evaluated_value(
                         changed_attribute_key=edge.label,
                         changed_attribute_value=val_to_eval,
@@ -152,6 +164,8 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                     )
 
         if multiple_edges and val_to_eval != origin_val:
+            if null_compare_rewritten:
+                val_to_eval = evaluator.unwrap_rendered_comparison(val_to_eval)
             self.update_evaluated_value(
                 changed_attribute_key=edge.label,
                 changed_attribute_value=val_to_eval,

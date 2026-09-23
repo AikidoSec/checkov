@@ -15,16 +15,20 @@ if typing.TYPE_CHECKING:
 class BaseTerraformCloudsplainingIAMScanner:
     # creating a PolicyDocument is computational expensive,
     # therefore a cache is defined at class level
-    policy_document_cache: Dict[str, PolicyDocument] = {}  # noqa: CCE003
+    policy_document_cache: Dict[tuple[str, str], PolicyDocument] = {}  # noqa: CCE003
 
     def scan_conf(self, conf: Dict[str, List[Any]]) -> CheckResult:
         if self.should_scan_conf(conf):
             try:
-                if self.cache_key not in BaseTerraformCloudsplainingIAMScanner.policy_document_cache.keys():
+                cache_key = (
+                    self.cache_key,
+                    json.dumps(conf, sort_keys=True, default=str),
+                )
+                if cache_key not in BaseTerraformCloudsplainingIAMScanner.policy_document_cache:
                     policy = self.convert_to_iam_policy(conf)
-                    BaseTerraformCloudsplainingIAMScanner.policy_document_cache[self.cache_key] = policy
+                    BaseTerraformCloudsplainingIAMScanner.policy_document_cache[cache_key] = policy
                 violations = self.cloudsplaining_analysis(
-                    BaseTerraformCloudsplainingIAMScanner.policy_document_cache[self.cache_key]
+                    BaseTerraformCloudsplainingIAMScanner.policy_document_cache[cache_key]
                 )
             except Exception:
                 # this might occur with templated iam policies where ARN is not in place or similar
