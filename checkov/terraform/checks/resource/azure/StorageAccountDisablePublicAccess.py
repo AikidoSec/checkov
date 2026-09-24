@@ -20,16 +20,11 @@ class StorageAccountDisablePublicAccess(BaseResourceCheck):
         )
 
     def scan_resource_conf(self, conf):
-        # 'public_network_access' supersedes the deprecated boolean 'public_network_access_enabled'
-        if 'public_network_access' in conf:
-            self.evaluated_keys = ['public_network_access']
-            if conf['public_network_access'][0] in ('Disabled', 'SecuredByPerimeter'):
-                return CheckResult.PASSED
         if 'public_network_access_enabled' in conf:
             self.evaluated_keys = ['public_network_access_enabled']
             if conf['public_network_access_enabled'][0] is False:
                 return CheckResult.PASSED
-
+    
         network_conf = [conf]
         evaluated_key_prefix = ''
         if 'network_rules' in conf:
