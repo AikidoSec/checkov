@@ -2,24 +2,37 @@ from typing import Any, Dict
 
 
 class Edge:
-    __slots__ = ("dest", "label", "origin")
+    # _str is the formatted form used by __eq__/__hash__. It is built once per label assignment,
+    # instead of on every comparison (what we did previously), because graph building hashes edges constantly.
+    # It's value is identical to the old f-string, since edges live in sets and their hashes.
+    __slots__ = ("dest", "origin", "_label", "_str")
 
     def __init__(self, origin: int, dest: int, label: str) -> None:
         self.origin = origin
         self.dest = dest
-        self.label = label
+        self._label = label
+        self._str = f"[{origin} -({label})-> {dest}]"
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._label = value
+        self._str = f"[{self.origin} -({value})-> {self.dest}]"
 
     def __str__(self) -> str:
-        return f"[{self.origin} -({self.label})-> {self.dest}]"
+        return self._str
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, Edge) and str(self) == str(other)
+        return isinstance(other, Edge) and self._str == other._str
 
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
 
     def __hash__(self) -> int:
-        return hash(str(self))
+        return hash(self._str)
 
     def to_dict(self) -> Dict[str, Any]:
         return {

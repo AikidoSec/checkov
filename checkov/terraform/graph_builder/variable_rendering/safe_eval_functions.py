@@ -1,6 +1,8 @@
 import itertools
 import logging
+import os
 import re
+import threading
 from datetime import datetime, timedelta
 from functools import reduce
 from math import ceil, floor, log
@@ -330,14 +332,35 @@ SAFE_EVAL_DICT["timestamp"] = lambda: datetime.utcnow().strftime('%Y-%m-%dT%H:%M
 SAFE_EVAL_DICT["timeadd"] = timeadd
 SAFE_EVAL_DICT["formatdate"] = formatdate
 
+SHOW_ASTEVAL_ERRORS = os.getenv("LOG_LEVEL", "").upper() == "DEBUG"
+
+# maps an expression to (succeeded, result) or (failed, error message)
+EVAL_CACHE: dict[str, tuple[bool, Any]] = {}
+EVAL_CACHE_MAX_SIZE = 50_000
+CACHEABLE_RESULT_TYPES = (str, int, float, bool, type(None))
+
+_interpreter_store = threading.local()
+
+
 def get_asteval() -> Interpreter:
     # asteval provides a safer environment for evaluating expressions by restricting the operations to a secure subset, significantly reducing the risk of executing malicious code.
-    return Interpreter(
-        symtable=SAFE_EVAL_DICT,
-        use_numpy=False,
-        minimal=True
-    )
+    # the interpreter is reused, since building one per evaluation dominates rendering time and
+    # every instance shares the same SAFE_EVAL_DICT symtable anyway. eval() resets the per-call state.
+    interpreter: Interpreter | None = getattr(_interpreter_store, "interpreter", None)
+    if interpreter is None:
+        interpreter = Interpreter(
+            symtable=SAFE_EVAL_DICT,
+            use_numpy=False,
+            minimal=True
+        )
+        _interpreter_store.interpreter = interpreter
+    return interpreter
     
+
+def _is_cacheable(input_str: Any) -> bool:
+    # "timestamp" is the only helper whose result depends on when it runs
+    return isinstance(input_str, str) and "timestamp" not in input_str
+
 
 def evaluate(input_str: str) -> Any:
     """
@@ -348,16 +371,35 @@ def evaluate(input_str: str) -> Any:
     if not input_str or input_str == "...":
         # don't create an Ellipsis object
         return input_str
-    
+
+    # the same expressions come back thousands of times on a large repo, and parsing them into an
+    # ast dominates rendering. failures are cached too, since _try_evaluate deliberately retries
+    # quoted variants of everything that fails.
+    cacheable = _is_cacheable(input_str)
+    if cacheable:
+        cached = EVAL_CACHE.get(input_str)
+        if cached is not None:
+            succeeded, value = cached
+            if succeeded:
+                return value
+            raise ValueError(value)
+
     asteval = get_asteval()
-    
-    evaluated = asteval(input_str)
+    # failed evaluation is an expected path here, so don't let asteval print every error to stdout (unless in DEBUG)
+    evaluated = asteval(input_str, show_errors=SHOW_ASTEVAL_ERRORS)
     
     if asteval.error:
         error_messages = [err.get_error() for err in asteval.error]
-        raise ValueError(f"Safe evaluation error: {error_messages}")
-    
-    return evaluated if not isinstance(evaluated, str) else remove_unicode_null(evaluated)
+        message = f"Safe evaluation error: {error_messages}"
+        if cacheable and len(EVAL_CACHE) < EVAL_CACHE_MAX_SIZE:
+            EVAL_CACHE[input_str] = (False, message)
+        raise ValueError(message)
+
+    result = evaluated if not isinstance(evaluated, str) else remove_unicode_null(evaluated)
+    # only immutable results are cached, so a caller mutating what it got back can't poison the cache
+    if cacheable and isinstance(result, CACHEABLE_RESULT_TYPES) and len(EVAL_CACHE) < EVAL_CACHE_MAX_SIZE:
+        EVAL_CACHE[input_str] = (True, result)
+    return result
 
 
 def remove_unicode_null(input_str: str) -> str:
