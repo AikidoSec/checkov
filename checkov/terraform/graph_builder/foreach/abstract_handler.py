@@ -58,9 +58,18 @@ class ForeachAbstractHandler:
         sub_graph.vertices = [{}] * len(self.local_graph.vertices)  # type:ignore[list-item]  # are correctly set in the next lines
         # a set, because this is checked once per vertex and blocks_to_render can be long
         block_indexes_to_render = set(blocks_to_render)
-        for i, block in enumerate(self.local_graph.vertices):
-            if not (block.block_type == BlockType.RESOURCE and i not in block_indexes_to_render):
-                sub_graph.vertices[i] = pickle_deepcopy(block)
+        indexes_to_copy = [
+            i for i, block in enumerate(self.local_graph.vertices)
+            if not (block.block_type == BlockType.RESOURCE and i not in block_indexes_to_render)
+        ]
+        # all blocks are copied in a single pickle round trip rather than one per block. pickle only
+        # memoizes shared objects within one call, and every block in a module references the same
+        # source_module_object (a TFModule chain as deep as the module nesting), so copying block by
+        # block re-serializes that chain once per block. one call serializes it once and, unlike the
+        # per-block copy, the copies keep sharing it the way the original vertices do.
+        copied_blocks = pickle_deepcopy([self.local_graph.vertices[i] for i in indexes_to_copy])
+        for i, copied_block in zip(indexes_to_copy, copied_blocks):
+            sub_graph.vertices[i] = copied_block
         sub_graph.edges = [
             edge for edge in self.local_graph.edges if
             (sub_graph.vertices[edge.dest] and sub_graph.vertices[edge.origin])
