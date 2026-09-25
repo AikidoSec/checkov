@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: win-affinity-matchfields
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: win-fields
+  template:
+    metadata:
+      labels:
+        app: win-fields
+    spec:
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchFields:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - windows

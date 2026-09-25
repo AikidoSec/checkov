@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: win-webserver-nodeselector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: win-webserver
+  template:
+    metadata:
+      labels:
+        app: win-webserver
+    spec:
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      nodeSelector:
+        kubernetes.io/os: windows

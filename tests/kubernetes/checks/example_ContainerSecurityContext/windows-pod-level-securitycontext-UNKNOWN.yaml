@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: win-pod-level-securitycontext
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: win-pod-sc
+  template:
+    metadata:
+      labels:
+        app: win-pod-sc
+    spec:
+      nodeSelector:
+        kubernetes.io/os: windows
+      securityContext:
+        windowsOptions:
+          runAsUserName: "ContainerUser"
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019

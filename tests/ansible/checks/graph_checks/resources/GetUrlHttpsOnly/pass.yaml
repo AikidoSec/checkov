@@ -8,3 +8,5 @@
         url: https://example.com/path/file.conf
         dest: /etc/foo.conf
         mode: '0440'
+    - name: inline_https
+      get_url: url='https://github.com/AikidoSec/somewhere' dest=/usr/bin/somewhere

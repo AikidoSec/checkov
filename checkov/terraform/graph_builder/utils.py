@@ -65,6 +65,7 @@ BLOCK_TYPES_STRINGS = ("var", "local", "module", "data")
 FUNC_CALL_PREFIX_PATTERN = re.compile(r"([.a-zA-Z]+)\(")
 INTERPOLATION_EXPR = re.compile(r"\$\{([^\}]*)\}")
 INDEX_PATTERN = re.compile(r"\[([0-9]+)\]")
+QUOTED_INDEX_PATTERN = re.compile(r"\[([\"'])([^\"']+)\1\]")
 MAP_ATTRIBUTE_PATTERN = re.compile(r"\[\"([^\d\W]\w*)\"\]")
 NESTED_ATTRIBUTE_PATTERN = re.compile(r"\.\d+")
 
@@ -180,6 +181,29 @@ def remove_index_pattern_from_str(str_value: str) -> str:
     return str_value
 
 
+def normalize_terraform_resource_index_name(resource_name: str) -> str:
+    """Convert foo[\"0\"] style resource names to foo[0] for graph vertex lookup."""
+    if "[" not in resource_name:
+        # otherwise it can't have a quoted index
+        return resource_name
+
+    return QUOTED_INDEX_PATTERN.sub(r"[\2]", resource_name)
+
+
+def resource_reference_lookup_variants(sub_parts: list[str]) -> list[list[str]]:
+    variants: list[list[str]] = [sub_parts]
+    stripped = [remove_index_pattern_from_str(sub_value) for sub_value in sub_parts]
+    if stripped not in variants:
+        variants.append(stripped)
+    normalized = [normalize_terraform_resource_index_name(sub_value) for sub_value in sub_parts]
+    if normalized not in variants:
+        variants.append(normalized)
+    normalized_stripped = [remove_index_pattern_from_str(s) for s in normalized]
+    if normalized_stripped not in variants:
+        variants.append(normalized_stripped)
+    return variants
+
+
 def remove_interpolation(str_value: str) -> str:
     if "${" not in str_value:
         # otherwise it can't be a string interpolation
@@ -209,6 +233,7 @@ def get_referenced_vertices_in_value(
         value: Union[str, List[str], Dict[str, str]],
         aliases: Dict[str, Dict[str, str]],
         resources_types: List[str],
+        include_indexed_references: bool = False,
 ) -> List[TerraformVertexReference]:
     references_vertices: "list[TerraformVertexReference]" = []
 
@@ -219,13 +244,13 @@ def get_referenced_vertices_in_value(
     if isinstance(value, list):
         for sub_value in value:
             references_vertices += get_referenced_vertices_in_value(
-                sub_value, aliases, resources_types
+                sub_value, aliases, resources_types, include_indexed_references
             )
 
     if isinstance(value, dict):
         for sub_value in value.values():
             references_vertices += get_referenced_vertices_in_value(
-                sub_value, aliases, resources_types
+                sub_value, aliases, resources_types, include_indexed_references
             )
 
     if isinstance(value, str):
@@ -233,6 +258,7 @@ def get_referenced_vertices_in_value(
             str_value=value,
             aliases=aliases,
             resources_types=resources_types,
+            include_indexed_references=include_indexed_references,
         )
 
     return references_vertices
@@ -242,6 +268,7 @@ def get_referenced_vertices_in_str_value(
     str_value: str,
     aliases: dict[str, dict[str, str]],
     resources_types: list[str],
+    include_indexed_references: bool = False,
 ) -> list[TerraformVertexReference]:
     references_vertices: "list[TerraformVertexReference]" = []
 
@@ -258,11 +285,24 @@ def get_referenced_vertices_in_str_value(
             return references_vertices
 
         str_value = remove_function_calls_from_str(str_value=str_value)
-        str_value = remove_index_pattern_from_str(str_value=str_value)
-        str_value = replace_map_attribute_access_with_dot(str_value=str_value)
-        str_value = remove_interpolation(str_value=str_value)
+        stripped_value = remove_index_pattern_from_str(str_value=str_value)
+        references_vertices = get_vertices_references(
+            remove_interpolation(replace_map_attribute_access_with_dot(stripped_value)),
+            aliases,
+            resources_types,
+        )
 
-        references_vertices = get_vertices_references(str_value, aliases, resources_types)
+        if include_indexed_references and stripped_value != str_value:
+            # the value contains an index access (e.g. 'aws_s3_bucket.replay[0].id'), so additionally
+            # collect references with the index preserved to match count/for_each expanded vertices
+            indexed_references = get_vertices_references(
+                remove_interpolation(replace_map_attribute_access_with_dot(str_value)),
+                aliases,
+                resources_types,
+            )
+            for vertex_reference in indexed_references:
+                if vertex_reference not in references_vertices:
+                    references_vertices.append(vertex_reference)
 
     return references_vertices
 

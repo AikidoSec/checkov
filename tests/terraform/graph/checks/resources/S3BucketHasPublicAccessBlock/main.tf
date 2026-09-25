@@ -7,6 +7,19 @@ resource "aws_s3_bucket" "bucket_good_2" {
   bucket = "bucket_good_2"
 }
 
+// Boolean count ternary: count-expanded resources are indexed (e.g. replay[0]) and must still connect.
+resource "aws_s3_bucket" "bucket_good_3" {
+  count  = var.create_replay_bucket ? 1 : 0
+  bucket = "bucket_good_3"
+}
+
+// Boolean count + bucket_prefix (regression for indexed graph edges)
+resource "aws_s3_bucket" "bucket_good_4" {
+  count = var.create_replay_bucket ? 1 : 0
+
+  bucket_prefix = lower("bucket-good-4-")
+}
+
 resource "aws_s3_bucket" "bucket_bad_1" {
   bucket = "bucket_bad_1"
 }
@@ -40,6 +53,22 @@ resource "aws_s3_bucket_public_access_block" "access_good_2" {
   block_public_policy     = true
   restrict_public_buckets = true
   ignore_public_acls      = true
+}
+
+resource "aws_s3_bucket_public_access_block" "access_good_3" {
+  count  = var.create_replay_bucket ? 1 : 0
+  bucket = aws_s3_bucket.bucket_good_3[0].id
+
+  block_public_acls   = true
+  block_public_policy = true
+}
+
+resource "aws_s3_bucket_public_access_block" "access_good_4" {
+  count  = var.create_replay_bucket ? 1 : 0
+  bucket = aws_s3_bucket.bucket_good_4[0].id
+
+  block_public_acls   = true
+  block_public_policy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "access_bad_1" {

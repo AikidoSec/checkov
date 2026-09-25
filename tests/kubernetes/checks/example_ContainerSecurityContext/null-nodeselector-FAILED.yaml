@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: null-nodeselector-still-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: null-ns
+  template:
+    metadata:
+      labels:
+        app: null-ns
+    spec:
+      nodeSelector: null
+      containers:
+        - name: app
+          image: busybox:1.36

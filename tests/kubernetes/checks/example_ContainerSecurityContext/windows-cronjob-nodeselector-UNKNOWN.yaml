@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: win-cronjob-nodeselector
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: win-cron
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: windowswebserver
+              image: mcr.microsoft.com/windows/servercore:ltsc2019
+          nodeSelector:
+            kubernetes.io/os: windows

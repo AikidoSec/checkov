@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: affinity-or-windows-linux-still-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: or-os
+  template:
+    metadata:
+      labels:
+        app: or-os
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - windows
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux

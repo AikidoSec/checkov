@@ -42,6 +42,7 @@ class EncryptionValues(str, Enum):
 
 class EncryptionTypes(str, Enum):
     KMS_VALUE = "KMS"
+    KMS_DSSE = "KMS_DSSE"
     NODE_TO_NODE = "node-to-node"
     DEFAULT_KMS = "Default KMS"
     AES256 = "AES256"

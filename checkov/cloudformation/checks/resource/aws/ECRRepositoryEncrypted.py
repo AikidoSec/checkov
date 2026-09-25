@@ -1,13 +1,12 @@
-from typing import Any
+from typing import Any, List
 
 from checkov.common.models.enums import CheckCategories
-from checkov.common.models.consts import ANY_VALUE
 from checkov.cloudformation.checks.resource.base_resource_value_check import BaseResourceValueCheck
 
 
 class ECRRepositoryEncrypted(BaseResourceValueCheck):
     def __init__(self) -> None:
-        name = "Ensure that ECR repositories are encrypted"
+        name = "Ensure that ECR repositories are encrypted using KMS"
         id = "CKV_AWS_136"
         supported_resources = ("AWS::ECR::Repository",)
         categories = (CheckCategories.ENCRYPTION,)
@@ -17,8 +16,11 @@ class ECRRepositoryEncrypted(BaseResourceValueCheck):
         return "Properties/EncryptionConfiguration/EncryptionType"
 
     def get_expected_value(self) -> Any:
-        # Valid Values: AES256 | KMS
-        return ANY_VALUE
+        return "KMS"
+
+    def get_expected_values(self) -> List[Any]:
+        # KMS_DSSE applies two layers of KMS encryption, so it also satisfies this check
+        return ["KMS", "KMS_DSSE"]
 
 
 check = ECRRepositoryEncrypted()

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: linux-os-name-still-fail
+spec:
+  os:
+    name: linux
+  containers:
+    - name: app
+      image: busybox:1.36

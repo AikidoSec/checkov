@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: win-nodeselector-case-insensitive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: win-case
+  template:
+    metadata:
+      labels:
+        app: win-case
+    spec:
+      containers:
+        - name: windowswebserver
+          image: mcr.microsoft.com/windows/servercore:ltsc2019
+      nodeSelector:
+        kubernetes.io/os: Windows

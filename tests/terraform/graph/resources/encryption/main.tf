@@ -7,8 +7,8 @@ resource aws_ecr_repository "encrypted_repo" {
   }
 }
 
-resource aws_ecr_repository "unencrypted_repo" {
-  name = "nimtest-repo-unencrypted"
+resource aws_ecr_repository "encrypted_default_repo" {
+  name = "nimtest-repo-default-encryption"
 }
 
 resource "aws_neptune_cluster" "encrypted_neptune" {

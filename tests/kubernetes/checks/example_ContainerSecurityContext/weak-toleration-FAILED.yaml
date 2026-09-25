@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toleration-windows-still-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: toleration-win
+  template:
+    metadata:
+      labels:
+        app: toleration-win
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+      tolerations:
+        - key: "os"
+          operator: "Equal"
+          value: "windows"
+          effect: "NoSchedule"

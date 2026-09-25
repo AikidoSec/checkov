@@ -17,7 +17,10 @@ class GenericResourceEncryption(GenericResourceEncryptionBase):
                          enabled_by_default,
                          node_to_node_encryption="NodeToNodeEncryptionOptions")
         if self.resource_type.startswith("AWS::"):
-            self.default_description = EncryptionTypes.DEFAULT_KMS.value
+            if self.resource_type == "AWS::ECR::Repository":
+                self.default_description = EncryptionTypes.AES256.value
+            else:
+                self.default_description = EncryptionTypes.DEFAULT_KMS.value
 
 
 # This map allows dynamically creating the check for each resource type based on GenericResourceEncryption.
@@ -26,9 +29,14 @@ ENCRYPTION_BY_RESOURCE_TYPE: dict[str, GenericResourceEncryption] = {
     "AWS::ECR::Repository": GenericResourceEncryption(
         "AWS::ECR::Repository",
         {
-            "EncryptionConfiguration.EncryptionType": [EncryptionTypes.AES256.value, EncryptionTypes.KMS_VALUE.value],
+            "EncryptionConfiguration.EncryptionType": [
+                EncryptionTypes.AES256.value,
+                EncryptionTypes.KMS_VALUE.value,
+                EncryptionTypes.KMS_DSSE.value,
+            ],
             "EncryptionConfiguration.KmsKey": get_empty_list_str(),
         },
+        enabled_by_default=True,
     ),
     "AWS::Neptune::DBCluster": GenericResourceEncryption(
         "AWS::Neptune::DBCluster", {"StorageEncrypted": [True], "KmsKeyId": get_empty_list_str()}

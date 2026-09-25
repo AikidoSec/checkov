@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: win-pod-os-name
+spec:
+  os:
+    name: windows
+  containers:
+    - name: windowswebserver
+      image: mcr.microsoft.com/windows/servercore:ltsc2019

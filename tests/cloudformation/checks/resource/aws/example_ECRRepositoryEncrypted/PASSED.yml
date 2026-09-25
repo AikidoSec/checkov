@@ -13,3 +13,10 @@ Resources:
       EncryptionConfiguration:
         EncryptionType: "KMS"
         KmsKey: "KeyID"
+  KMSDSSEEncryption:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: "test"
+      EncryptionConfiguration:
+        EncryptionType: "KMS_DSSE"
+        KmsKey: "KeyID"
