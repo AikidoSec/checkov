@@ -157,20 +157,39 @@ class TerraformLocalGraph(LocalGraph[TerraformBlock]):
         matching module vertex as 'source_module'
         """
         if self.use_new_tf_parser:
-            for vertex in self.vertices:
-                if not vertex.source_module_object:
+            # index the module vertices, so each vertex is a single lookup instead of a scan over all of them.
+            # setdefault keeps the first match, which is what the previous loop did when it hit `break`.
+            module_idx_by_key: dict[tuple[Any, ...], int] = {}
+            for idx in self.vertices_by_block_type[BlockType.MODULE]:
+                module_vertex = self.vertices[idx]
+                try:
+                    key = (
+                        module_vertex.name,
+                        module_vertex.path,
+                        module_vertex.source_module_object,
+                        module_vertex.for_each_index,
+                    )
+                    hash(key)
+                except TypeError:
+                    # for_each_index is loosely typed, and an unhashable one could never equal the
+                    # int/str foreach_idx we look up with, so it is safe to leave out of the index
                     continue
-                for idx in self.vertices_by_block_type[BlockType.MODULE]:
-                    if vertex.source_module_object.name != self.vertices[idx].name:
-                        continue
-                    if vertex.source_module_object.path != self.vertices[idx].path:
-                        continue
-                    if vertex.source_module_object.nested_tf_module != self.vertices[idx].source_module_object:
-                        continue
-                    if vertex.source_module_object.foreach_idx != self.vertices[idx].for_each_index:
-                        continue
+                module_idx_by_key.setdefault(key, idx)
+
+            for vertex in self.vertices:
+                source_module_object = vertex.source_module_object
+                if not source_module_object:
+                    continue
+                idx = module_idx_by_key.get(
+                    (
+                        source_module_object.name,
+                        source_module_object.path,
+                        source_module_object.nested_tf_module,
+                        source_module_object.foreach_idx,
+                    )
+                )
+                if idx is not None:
                     vertex.source_module.add(idx)
-                    break
             return
 
         if not self.module.module_dependency_map:
