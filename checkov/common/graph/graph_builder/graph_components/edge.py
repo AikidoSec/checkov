@@ -3,9 +3,8 @@ from typing import Any, Dict
 
 class Edge:
     # _str is the formatted form used by __eq__/__hash__. It is built once per label assignment,
-    # instead of on every comparison, because graph building hashes edges constantly. The value is
-    # kept byte for byte identical to the old f-string, since edges live in sets and their hashes
-    # decide the order variable rendering visits them in.
+    # instead of on every comparison (what we did previously), because graph building hashes edges constantly.
+    # It's value is identical to the old f-string, since edges live in sets and their hashes.
     __slots__ = ("dest", "origin", "_label", "_str")
 
     def __init__(self, origin: int, dest: int, label: str) -> None:
