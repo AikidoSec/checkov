@@ -127,11 +127,15 @@ class Runner(BaseRunner[ObjectGraphManager]):  # if a graph is added, Any needs 
             if root_folder:
                 self.root_folder = root_folder
 
+                # collect every file first and load them in a single call. _load_files forks a pool of
+                # worker processes on each call, so calling it per directory forked once per directory
+                # (thousands of times on a large repo), with every fork copying the parent's whole heap.
+                files_to_load: list[str] = []
                 for root, d_names, f_names in os.walk(root_folder):
                     filter_ignored_paths(root, d_names, runner_filter.excluded_paths, self.included_paths())
                     filter_ignored_paths(root, f_names, runner_filter.excluded_paths, self.included_paths())
-                    files_to_load = [os.path.join(root, f_name) for f_name in f_names]
-                    self._load_files(files_to_load=files_to_load)
+                    files_to_load.extend(os.path.join(root, f_name) for f_name in f_names)
+                self._load_files(files_to_load=files_to_load)
 
             self.context = self.build_definitions_context(definitions=self.definitions, definitions_raw=self.definitions_raw)
 

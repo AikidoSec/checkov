@@ -76,7 +76,7 @@ from checkov.yaml_doc.runner import Runner as yaml_runner
 from checkov.bicep.runner import Runner as bicep_runner
 from checkov.openapi.runner import Runner as openapi_runner
 from checkov.circleci_pipelines.runner import Runner as circleci_pipelines_runner
-from checkov.logging_init import log_stream as logs_stream
+from checkov.logging_init import enable_log_capture, log_stream as logs_stream
 
 if TYPE_CHECKING:
     from checkov.common.output.report import Report
@@ -166,6 +166,8 @@ class Checkov:
         argcomplete.autocomplete(self.parser)
 
         self.config = self.parser.parse_args(argv)
+        if self.config.support:
+            enable_log_capture()
         self.normalize_config()
 
     def normalize_config(self) -> None:
