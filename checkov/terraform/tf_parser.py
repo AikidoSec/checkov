@@ -65,6 +65,9 @@ class TFParser:
         self.module_address_map = {}
         self.tf_var_files = tf_var_files
         self.dirname_cache: dict[str, str] = {}
+        # lets module loading look up the definitions of a single directory without scanning them all.
+        # the inner dict is an ordered set - callers depend on out_definitions insertion order.
+        self.definition_keys_by_dirname: dict[str, dict[TFDefinitionKey, None]] = defaultdict(dict)
         self.excluded_paths = excluded_paths
         self.visited_definition_keys: set[TFDefinitionKey] = set()
         self.module_to_resolved: dict[tuple[TFDefinitionKey | None, str], list[TFDefinitionKey]] = {}
@@ -134,7 +137,7 @@ class TFParser:
 
         for key in keys_referenced_as_modules:
             if key in self.out_definitions:
-                del self.out_definitions[key]
+                self.remove_definition(key)
 
     def _internal_dir_load(
         self,
@@ -157,7 +160,7 @@ class TFParser:
         for file, data in sorted(files_to_data, key=lambda x: x[0]):
             if not data:
                 continue
-            self.out_definitions[TFDefinitionKey(file)] = data
+            self.set_definition(TFDefinitionKey(file), data)
             self.add_external_vars_from_data(data, file)
 
         force_final_module_load = False
@@ -212,10 +215,7 @@ class TFParser:
                       nested_modules_data: dict[str, Any] | None = None) -> bool:
         all_module_definitions: dict[TFDefinitionKey, dict[str, list[dict[str, Any]]]] = {}
         skipped_a_module = False
-        for file in list(self.out_definitions.keys()):
-            if not self.should_loaded_file(file, root_dir):
-                continue
-
+        for file in self.definition_keys_in(root_dir):
             #  Dont run over the nested because we already run on them - dont remove.
             if file.tf_source_modules:
                 continue
@@ -272,9 +272,9 @@ class TFParser:
                         )
 
                         module_definitions = {
-                            path: definition
-                            for path, definition in self.out_definitions.items()
-                            if self.get_dirname(path) == content_path and not path.tf_source_modules
+                            path: self.out_definitions[path]
+                            for path in self.definition_keys_in(content_path)
+                            if not path.tf_source_modules and path in self.out_definitions
                         }
                         if not module_definitions:
                             continue
@@ -287,12 +287,12 @@ class TFParser:
                             new_key = self.get_new_nested_module_key(key, file, module_call_name, nested_modules_data)
                             if new_key in self.visited_definition_keys:
                                 del module_definitions[key]
-                                del self.out_definitions[key]
+                                self.remove_definition(key)
                                 continue
 
                             module_definitions[new_key] = module_definitions[key]
                             del module_definitions[key]
-                            del self.out_definitions[key]
+                            self.remove_definition(key)
                             self.keys_to_remove.add(key)
 
                             self.visited_definition_keys.add(new_key)
@@ -310,6 +310,8 @@ class TFParser:
 
         if all_module_definitions:
             deep_merge.merge(self.out_definitions, all_module_definitions)
+            for key in all_module_definitions:
+                self.definition_keys_by_dirname[self.get_dirname(key)][key] = None
         return skipped_a_module
 
     def parse_hcl_module(
@@ -396,7 +398,7 @@ class TFParser:
         return dirs_to_definitions
 
     def _remove_unused_path_recursive(self, path: TFDefinitionKey) -> None:
-        self.out_definitions.pop(path, None)
+        self.remove_definition(path)
         for key in list(self.module_to_resolved.keys()):
             file_key = None
             if isinstance(key[0], TFDefinitionKey):
@@ -529,6 +531,18 @@ class TFParser:
 
     def should_loaded_file(self, file: TFDefinitionKey, root_dir: str) -> bool:
         return not self.get_dirname(file) != root_dir
+
+    def set_definition(self, key: TFDefinitionKey, data: dict[str, list[dict[str, Any]]]) -> None:
+        self.out_definitions[key] = data
+        self.definition_keys_by_dirname[self.get_dirname(key)][key] = None
+
+    def remove_definition(self, key: TFDefinitionKey) -> None:
+        self.out_definitions.pop(key, None)
+        self.definition_keys_by_dirname[self.get_dirname(key)].pop(key, None)
+
+    def definition_keys_in(self, dirname: str) -> list[TFDefinitionKey]:
+        # a copy, since callers mutate out_definitions while iterating
+        return list(self.definition_keys_by_dirname.get(dirname, {}))
 
     def get_module_source(
         self, module_call_data: dict[str, Any], module_call_name: str, file: TFDefinitionKeyType
