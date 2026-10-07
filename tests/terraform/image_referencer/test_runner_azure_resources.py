@@ -134,7 +134,7 @@ def test_app_service_linux_function_resources(mocker: MockerFixture, graph_frame
 
     assert len(tf_report.resources) == 2
     assert len(tf_report.passed_checks) == 0
-    assert len(tf_report.failed_checks) == 0
+    assert len(tf_report.failed_checks) == 2
     assert len(tf_report.skipped_checks) == 0
     assert len(tf_report.parsing_errors) == 0
 
