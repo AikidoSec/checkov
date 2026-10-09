@@ -6,11 +6,36 @@ import pytest
 
 from checkov.terraform.graph_builder.variable_rendering.evaluate_terraform import evaluate_terraform, \
     replace_string_value, \
-    remove_interpolation, _find_new_value_for_interpolation
+    remove_interpolation, _find_new_value_for_interpolation, replace_null_compare_operands
 from checkov.terraform.graph_builder.variable_rendering.safe_eval_functions import get_asteval
 
 
 class TestTerraformEvaluation(TestCase):
+    def test_null_compare_does_not_match_longer_tokens(self):
+        expression = "None == var.max_pods_extra ? var.max_pods : var.max_pods_extra"
+        self.assertEqual(expression, replace_null_compare_operands(expression, "var.max_pods"))
+        self.assertEqual(
+            "var.subnet_ids == null_resource.example.id",
+            replace_null_compare_operands("var.subnet_ids == null_resource.example.id", "var.subnet_ids"),
+        )
+        self.assertEqual(
+            "${None == None ? ['x'] : var.subnet_ids}",
+            replace_null_compare_operands("${var.subnet_ids == None ? ['x'] : var.subnet_ids}", "var.subnet_ids"),
+        )
+        self.assertEqual(
+            "None == null",
+            replace_null_compare_operands("var.subnet_ids == null", "var.subnet_ids"),
+        )
+        self.assertEqual(
+            "see None == null",
+            replace_null_compare_operands("see var.subnet_ids == null", "var.subnet_ids"),
+        )
+        self.assertEqual("don't", evaluate_terraform('${None == None ? "don\'t" : "other"}').strip('"'))
+        self.assertEqual(
+            '"see var.subnet_ids == null"',
+            replace_null_compare_operands('"see var.subnet_ids == null"', "var.subnet_ids"),
+        )
+
     def test_directive(self):
         input_str = '"Hello, %{ if "d" != "" }named%{ else }unnamed%{ endif }!"'
         expected = 'Hello, named!'

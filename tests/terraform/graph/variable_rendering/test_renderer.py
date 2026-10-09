@@ -435,6 +435,59 @@ class TestRenderer(TestCase):
         assert resources_vertex[0].attributes.get('identity').get('identity_ids') == 'null'
         assert resources_vertex[0].attributes.get('identity').get('type') == 'SystemAssigned'
 
+    def test_null_default_ternary(self):
+        graph_manager = TerraformGraphManager('m', ['m'])
+        local_graph, _ = graph_manager.build_graph_from_source_directory(
+            os.path.join(TEST_DIRNAME, "test_resources", "null_default_ternary"), render_variables=True)
+        fallback = (
+            "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/"
+            "providers/Microsoft.Network/virtualNetworks/vnet/subnets/pe"
+        )
+        provided = (
+            "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/"
+            "providers/Microsoft.Network/virtualNetworks/vnet/subnets/provided"
+        )
+        vertices = {
+            v.name: v
+            for v in local_graph.vertices
+            if v.block_type == BlockType.RESOURCE
+        }
+
+        null_default_ids = vertices["azurerm_key_vault.null_default"].attributes.get(
+            "network_acls.virtual_network_subnet_ids"
+        )
+        self.assertEqual([fallback], null_default_ids)
+
+        provided_ids = vertices["azurerm_key_vault.provided_list"].attributes.get(
+            "network_acls.virtual_network_subnet_ids"
+        )
+        if isinstance(provided_ids, list) and len(provided_ids) == 1 and isinstance(provided_ids[0], list):
+            provided_ids = provided_ids[0]
+        self.assertEqual([provided], provided_ids)
+
+        direct_ids = vertices["azurerm_key_vault.direct_null"].attributes.get(
+            "network_acls.virtual_network_subnet_ids"
+        )
+        self.assertNotIn("None", str(direct_ids))
+        self.assertFalse(direct_ids)
+
+        self.assertEqual(
+            51,
+            vertices["azurerm_kubernetes_cluster.null_compare"].attributes.get("default_node_pool.max_pods"),
+        )
+        self.assertEqual(
+            "LRS",
+            vertices["azurerm_storage_account.top_level"].attributes.get("account_replication_type"),
+        )
+        self.assertEqual(
+            ["var.tls_version"],
+            vertices["azurerm_storage_account.null_string"].attributes.get("min_tls_version"),
+        )
+        self.assertEqual(
+            [7],
+            vertices["azurerm_storage_account.longer_name"].attributes.get("account_kind"),
+        )
+
     def test_lookup_from_var(self):
         graph_manager = TerraformGraphManager('m', ['m'])
         local_graph, _ = graph_manager.build_graph_from_source_directory(
