@@ -20,7 +20,8 @@ class TestSecurityGroupUnrestrictedIngress3389(unittest.TestCase):
         passing_resources = {
             "aws_security_group.pass",
             "aws_security_group_rule.pass",
-            "aws_vpc_security_group_ingress_rule.pass"
+            "aws_vpc_security_group_ingress_rule.pass",
+            "aws_vpc_security_group_ingress_rule.pass_referenced_sg",
         }
 
         failing_resources = {

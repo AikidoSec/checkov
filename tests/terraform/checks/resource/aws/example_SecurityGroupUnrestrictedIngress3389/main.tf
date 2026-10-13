@@ -42,6 +42,15 @@ resource "aws_vpc_security_group_ingress_rule" "pass" {
   to_port     = 80
 }
 
+resource "aws_vpc_security_group_ingress_rule" "pass_referenced_sg" {
+  security_group_id            = aws_security_group.example.id
+  description                  = "RDP"
+  ip_protocol                  = "tcp"
+  from_port                    = 3389
+  to_port                      = 3389
+  referenced_security_group_id = aws_security_group.rdp.id
+}
+
 # fail
 
 resource "aws_security_group" "fail" {

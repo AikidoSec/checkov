@@ -31,6 +31,7 @@ class TestSecurityGroupUnrestrictedIngress22(unittest.TestCase):
             "aws_security_group_rule.pass3",
             "aws_security_group_rule.pass4",
             "aws_vpc_security_group_ingress_rule.pass",
+            "aws_vpc_security_group_ingress_rule.pass_referenced_sg",
             "aws_security_group.pass_self",
             "aws_security_group.pass_self2"
         }

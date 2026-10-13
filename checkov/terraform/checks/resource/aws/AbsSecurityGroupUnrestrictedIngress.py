@@ -102,7 +102,8 @@ class AbsSecurityGroupUnrestrictedIngress(BaseResourceCheck):
                 return True
             if not ipv6_cidr_blocks and not cidr_blocks \
                     and conf.get('security_groups') is None \
-                    and conf.get('source_security_group_id') is None:
+                    and conf.get('source_security_group_id') is None \
+                    and conf.get('referenced_security_group_id') is None:
                 return True
         return False
 
