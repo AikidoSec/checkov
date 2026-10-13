@@ -461,8 +461,6 @@ class TestRenderer(TestCase):
         provided_ids = vertices["azurerm_key_vault.provided_list"].attributes.get(
             "network_acls.virtual_network_subnet_ids"
         )
-        if isinstance(provided_ids, list) and len(provided_ids) == 1 and isinstance(provided_ids[0], list):
-            provided_ids = provided_ids[0]
         self.assertEqual([provided], provided_ids)
 
         direct_ids = vertices["azurerm_key_vault.direct_null"].attributes.get(
@@ -476,7 +474,7 @@ class TestRenderer(TestCase):
             vertices["azurerm_kubernetes_cluster.null_compare"].attributes.get("default_node_pool.max_pods"),
         )
         self.assertEqual(
-            "LRS",
+            ["LRS"],
             vertices["azurerm_storage_account.top_level"].attributes.get("account_replication_type"),
         )
         self.assertEqual(
@@ -487,6 +485,18 @@ class TestRenderer(TestCase):
             [7],
             vertices["azurerm_storage_account.longer_name"].attributes.get("account_kind"),
         )
+
+    def test_ternary_in_quoted_template(self):
+        graph_manager = TerraformGraphManager('m', ['m'])
+        local_graph, _ = graph_manager.build_graph_from_source_directory(
+            os.path.join(TEST_DIRNAME, "test_resources", "null_default_quoted_template"), render_variables=True)
+        vertices = {
+            v.name: v.attributes
+            for v in local_graph.vertices
+            if v.block_type == BlockType.RESOURCE
+        }
+        self.assertEqual(["LRS"], vertices["azurerm_storage_account.nested_null"].get("account_replication_type"))
+        self.assertEqual(["LRS"], vertices["azurerm_storage_account.nested_set"].get("account_replication_type"))
 
     def test_lookup_from_var(self):
         graph_manager = TerraformGraphManager('m', ['m'])

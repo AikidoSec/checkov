@@ -125,7 +125,6 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
         origin_val = modified_vertex_attributes.get(edge.label, "")
         val_to_eval = pickle_deepcopy(origin_val)
         first_key_path = None
-        null_compare_rewritten = False
 
         if referenced_vertices:
             for edge in edge_list:
@@ -146,15 +145,10 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                     and "default" in dest_vertex_attributes
                     and dest_vertex_attributes.get("default") is None
                 ):
-                    rewritten = evaluator.replace_null_compare_operands(val_to_eval, replaced_key)
-                    if rewritten != val_to_eval:
-                        null_compare_rewritten = True
-                        val_to_eval = rewritten
+                    val_to_eval = evaluator.replace_null_compare_operands(val_to_eval, replaced_key)
                 if evaluated_attribute_value is not None:
                     val_to_eval = self.replace_value(edge, val_to_eval, replaced_key, evaluated_attribute_value, True)
                 if not multiple_edges and val_to_eval != origin_val:
-                    if null_compare_rewritten:
-                        val_to_eval = evaluator.unwrap_rendered_comparison(val_to_eval)
                     self.update_evaluated_value(
                         changed_attribute_key=edge.label,
                         changed_attribute_value=val_to_eval,
@@ -164,8 +158,6 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
                     )
 
         if multiple_edges and val_to_eval != origin_val:
-            if null_compare_rewritten:
-                val_to_eval = evaluator.unwrap_rendered_comparison(val_to_eval)
             self.update_evaluated_value(
                 changed_attribute_key=edge.label,
                 changed_attribute_value=val_to_eval,
@@ -270,15 +262,22 @@ class TerraformVariableRenderer(VariableRenderer["TerraformLocalGraph"]):
         """
         The function updates the value of changed_attribute_key with changed_attribute_value for vertex
         """
-        str_to_evaluate = (
-            str(changed_attribute_value)
-            if self.attributes_no_eval(changed_attribute_key, vertex)
-            else f'"{str(changed_attribute_value)}"'
-        )
-        str_to_evaluate = str_to_evaluate.replace("\\\\", "\\")
-        evaluated_attribute_value = (
-            str_to_evaluate if self.attributes_no_eval(changed_attribute_key, vertex) else evaluator.evaluate_terraform(str_to_evaluate)
-        )
+        if self.attributes_no_eval(changed_attribute_key, vertex):
+            evaluated_attribute_value = str(changed_attribute_value).replace("\\\\", "\\")
+        else:
+            str_to_evaluate = f'"{str(changed_attribute_value)}"'.replace("\\\\", "\\")
+            evaluated_attribute_value = evaluator.evaluate_terraform(str_to_evaluate)
+            if (
+                evaluated_attribute_value is None
+                and isinstance(changed_attribute_value, list)
+                and len(changed_attribute_value) == 1
+                and isinstance(changed_attribute_value[0], str)
+            ):
+                # hcl2 wraps every attribute value in a single-item list. Some expressions (e.g. ternaries) can't be
+                # resolved once embedded in a stringified list, so retry on the inner expression alone.
+                inner_value = evaluator.evaluate_terraform(f'"{changed_attribute_value[0]}"'.replace("\\\\", "\\"))
+                if inner_value is not None:
+                    evaluated_attribute_value = [inner_value]
         self.local_graph.update_vertex_attribute(
             vertex, changed_attribute_key, evaluated_attribute_value, change_origin_id, attribute_at_dest
         )

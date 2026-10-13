@@ -99,23 +99,6 @@ def _try_evaluate(input_str: Union[str, bool]) -> Any:
                     return input_str
 
 
-def _inside_quotes(text: str, idx: int) -> bool:
-    single = False
-    double = False
-    i = 0
-    while i < idx:
-        char = text[i]
-        if char == "\\" and i + 1 < idx:
-            i += 2
-            continue
-        if char == "'" and not double:
-            single = not single
-        elif char == '"' and not single:
-            double = not double
-        i += 1
-    return single or double
-
-
 def _replace_bounded(text: str, old: str, new: str) -> str:
     start = 0
     parts: list[str] = []
@@ -128,8 +111,8 @@ def _replace_bounded(text: str, old: str, new: str) -> str:
         end = idx + len(old)
         nxt = text[end] if end < len(text) else ""
         blocked = (prev.isalnum() or prev in "._") if prev else False
-        blocked = blocked or ((nxt.isalnum() or nxt in "._") if nxt else False)
-        if blocked or _inside_quotes(text, idx):
+        blocked = blocked or ((nxt.isalnum() or nxt in "._[") if nxt else False)
+        if blocked:
             parts.append(text[start:idx + 1])
             start = idx + 1
             continue
@@ -148,19 +131,9 @@ def replace_null_compare_operands(original_str: Any, var_name: str) -> Any:
         or ("==" not in original_str and "!=" not in original_str)
     ):
         return original_str
-    for op in ("==", "!="):
-        for token in ("null", "None"):
-            original_str = _replace_bounded(original_str, f"{var_name} {op} {token}", f"None {op} {token}")
-            original_str = _replace_bounded(original_str, f"{token} {op} {var_name}", f"{token} {op} None")
-    return original_str
-
-
-def unwrap_rendered_comparison(value: Any) -> Any:
-    if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
-        rendered = evaluate_terraform(value[0])
-        if rendered is not None:
-            return rendered
-    return value
+    # hcl2 converts `null` to `None` except inside quoted string templates, and the evaluator only knows `None`.
+    original_str = _replace_bounded(original_str, var_name, "None")
+    return _replace_bounded(original_str, "null", "None")
 
 
 def replace_string_value(original_str: Any, str_to_replace: str, replaced_value: str, keep_origin: bool = True) -> Any:
@@ -191,6 +164,17 @@ def replace_string_value(original_str: Any, str_to_replace: str, replaced_value:
         wrapped_str_to_replace = f'"{str_to_replace}"'
         if wrapped_str_to_replace in string_without_interpolation:
             str_to_replace = wrapped_str_to_replace
+    elif isinstance(replaced_value, str) and ("==" in string_without_interpolation or "!=" in string_without_interpolation):
+        # A string used as a comparison operand must stay a string literal: `var.x == "a"` with var.x = "b"
+        # has to become `"b" == "a"`, not `b == "a"`, otherwise the comparison can't be evaluated.
+        quoted_value = f'"{replaced_value}"'
+        for op in ("==", "!="):
+            string_without_interpolation = _replace_bounded(
+                string_without_interpolation, f"{str_to_replace} {op}", f"{quoted_value} {op}"
+            )
+            string_without_interpolation = _replace_bounded(
+                string_without_interpolation, f"{op} {str_to_replace}", f"{op} {quoted_value}"
+            )
     res = string_without_interpolation.replace(str_to_replace, str(replaced_value))
     return res
 
