@@ -269,10 +269,10 @@ def evaluate_conditional_expression(input_str: str) -> str:
         condition_substr = input_str[start:end]
         bool_evaluated_condition = convert_to_bool(evaluated_condition)
         if bool_evaluated_condition is True:
-            true_val = str(evaluate_terraform(groups[1].strip())).strip()
+            true_val = str(evaluate_terraform(groups[1])).strip()
             input_str = input_str.replace(condition_substr, true_val)
         elif bool_evaluated_condition is False:
-            false_val = str(evaluate_terraform(groups[2].strip())).strip()
+            false_val = str(evaluate_terraform(groups[2])).strip()
             input_str = input_str.replace(condition_substr, false_val)
         else:
             # in case we didn't succeed to evaluate condition we shouldn't put any value.
