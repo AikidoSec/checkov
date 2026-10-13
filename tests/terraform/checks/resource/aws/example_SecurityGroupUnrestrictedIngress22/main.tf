@@ -320,6 +320,22 @@ resource "aws_vpc_security_group_ingress_rule" "pass" {
 
 }
 
+resource "aws_vpc_security_group_ingress_rule" "pass_referenced_sg" {
+  security_group_id            = aws_security_group.example.id
+  from_port                    = 22
+  ip_protocol                  = "tcp"
+  to_port                      = 22
+  referenced_security_group_id = aws_security_group.connector.id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "pass_prefix_list" {
+  security_group_id = aws_security_group.example.id
+  from_port         = 22
+  ip_protocol       = "tcp"
+  to_port           = 22
+  prefix_list_id    = aws_ec2_managed_prefix_list.example.id
+}
+
 resource "aws_security_group" "pass_self" {
   name   = "sg-bar"
   vpc_id = aws_vpc.main.id
