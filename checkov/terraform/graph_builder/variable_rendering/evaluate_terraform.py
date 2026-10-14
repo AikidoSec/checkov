@@ -99,6 +99,48 @@ def _try_evaluate(input_str: Union[str, bool]) -> Any:
                     return input_str
 
 
+def _replace_bounded(text: str, old: str, new: str, block_chars: str = "") -> str:
+    """
+    Replace `old` with `new` only where it is a whole token, i.e. not glued to an identifier character.
+    `block_chars` adds characters that, when adjacent on either side, also prevent the replacement.
+    """
+    start = 0
+    parts: list[str] = []
+    while True:
+        idx = text.find(old, start)
+        if idx < 0:
+            parts.append(text[start:])
+            return "".join(parts)
+        prev = text[idx - 1] if idx else ""
+        end = idx + len(old)
+        nxt = text[end] if end < len(text) else ""
+        blocked = (prev.isalnum() or prev in "._" + block_chars) if prev else False
+        blocked = blocked or ((nxt.isalnum() or nxt in "._[" + block_chars) if nxt else False)
+        if blocked:
+            parts.append(text[start:idx + 1])
+            start = idx + 1
+            continue
+        parts.append(text[start:idx])
+        parts.append(new)
+        start = idx + len(old)
+
+
+def replace_null_compare_operands(original_str: Any, var_name: str) -> Any:
+    if isinstance(original_str, list):
+        return [replace_null_compare_operands(item, var_name) for item in original_str]
+    if (
+        not isinstance(original_str, str)
+        or not var_name
+        or var_name not in original_str
+        or ("==" not in original_str and "!=" not in original_str)
+    ):
+        return original_str
+    # hcl2 converts `null` to `None` except inside quoted string templates, and the evaluator only knows `None`.
+    # Only the bare keyword is converted; a quoted "null" string literal is left alone.
+    original_str = _replace_bounded(original_str, var_name, "None")
+    return _replace_bounded(original_str, "null", "None", block_chars="\"'")
+
+
 def replace_string_value(original_str: Any, str_to_replace: str, replaced_value: str, keep_origin: bool = True) -> Any:
     if original_str is None or type(original_str) not in (str, list):
         return original_str
@@ -113,6 +155,13 @@ def replace_string_value(original_str: Any, str_to_replace: str, replaced_value:
     if str_to_replace not in original_str:
         return original_str if keep_origin else str_to_replace
 
+    if isinstance(replaced_value, str):
+        quoted_interp = f"'${{{str_to_replace}}}'"
+        if quoted_interp in original_str:
+            original_str = original_str.replace(quoted_interp, repr(replaced_value))
+            if str_to_replace not in original_str:
+                return original_str
+
     string_without_interpolation = remove_interpolation(original_str, str_to_replace, escape_unrendered=False)
     if (isinstance(replaced_value, (list, dict)) and not str_to_replace.startswith('"')):
         # In cases we are rendering a variable of list/dict, it might result in mistakenly transforming them to str.
@@ -120,7 +169,18 @@ def replace_string_value(original_str: Any, str_to_replace: str, replaced_value:
         wrapped_str_to_replace = f'"{str_to_replace}"'
         if wrapped_str_to_replace in string_without_interpolation:
             str_to_replace = wrapped_str_to_replace
-    res =  string_without_interpolation.replace(str_to_replace, str(replaced_value))
+    elif isinstance(replaced_value, str) and ("==" in string_without_interpolation or "!=" in string_without_interpolation):
+        # A string used as a comparison operand must stay a string literal: `var.x == "a"` with var.x = "b"
+        # has to become `"b" == "a"`, not `b == "a"`, otherwise the comparison can't be evaluated.
+        quoted_value = f'"{replaced_value}"'
+        for op in ("==", "!="):
+            string_without_interpolation = _replace_bounded(
+                string_without_interpolation, f"{str_to_replace} {op}", f"{quoted_value} {op}"
+            )
+            string_without_interpolation = _replace_bounded(
+                string_without_interpolation, f"{op} {str_to_replace}", f"{op} {quoted_value}"
+            )
+    res = string_without_interpolation.replace(str_to_replace, str(replaced_value))
     return res
 
 
@@ -210,7 +270,7 @@ def evaluate_conditional_expression(input_str: str) -> str:
         groups, start, end = condition
         if len(groups) != 3:
             return input_str
-        evaluated_condition = evaluate_terraform(groups[0])
+        evaluated_condition = evaluate_terraform(groups[0].strip())
         condition_substr = input_str[start:end]
         bool_evaluated_condition = convert_to_bool(evaluated_condition)
         if bool_evaluated_condition is True:
@@ -566,6 +626,8 @@ def find_conditional_expression_groups(input_str: str) -> Optional[Tuple[List[st
         # can be true only if the char in str_keys or in brackets_pairs.values()
         if stack and stack[-1][0] == char:
             stack.pop(len(stack) - 1)
+        elif stack and stack[-1][0] in str_keys:
+            return
         elif char in brackets_pairs:
             stack.append((brackets_pairs[char], i))
         elif char in str_keys:

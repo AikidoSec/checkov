@@ -6,11 +6,88 @@ import pytest
 
 from checkov.terraform.graph_builder.variable_rendering.evaluate_terraform import evaluate_terraform, \
     replace_string_value, \
-    remove_interpolation, _find_new_value_for_interpolation
+    remove_interpolation, _find_new_value_for_interpolation, replace_null_compare_operands
 from checkov.terraform.graph_builder.variable_rendering.safe_eval_functions import get_asteval
 
 
 class TestTerraformEvaluation(TestCase):
+    def test_null_compare_rewrite_keeps_quoted_null_literal(self):
+        rewritten = replace_null_compare_operands(
+            '${var.secret == null ? "a" : (var.mode == "null" ? "b" : "c")}', "var.secret"
+        )
+        self.assertEqual('${None == None ? "a" : (var.mode == "null" ? "b" : "c")}', rewritten)
+        self.assertEqual(
+            "${None == None ? 'null' : 'other'}",
+            replace_null_compare_operands("${var.secret == null ? 'null' : 'other'}", "var.secret"),
+        )
+
+    def test_null_compare_rewrite_with_null_token_is_evaluable(self):
+        rewritten = replace_null_compare_operands("var.max_pods == null ? 51 : 49", "var.max_pods")
+        self.assertEqual("None == None ? 51 : 49", rewritten)
+        self.assertEqual(51, evaluate_terraform(rewritten))
+
+        rewritten = replace_null_compare_operands("var.max_pods != null ? 51 : 49", "var.max_pods")
+        self.assertEqual("None != None ? 51 : 49", rewritten)
+        self.assertEqual(49, evaluate_terraform(rewritten))
+
+    def test_null_compare_rewrite_handles_operator_without_spaces(self):
+        self.assertEqual(
+            "None==None ? 51 : 49",
+            replace_null_compare_operands("var.max_pods==None ? 51 : 49", "var.max_pods"),
+        )
+
+    def test_replace_string_value_quotes_compared_string(self):
+        self.assertEqual(
+            '${"x" == "x" ? "LRS" : "GRS"}',
+            replace_string_value('${var.s == "x" ? "LRS" : "GRS"}', "var.s", "x"),
+        )
+        self.assertEqual(
+            '${"x" != "x" ? "LRS" : "GRS"}',
+            replace_string_value('${var.s != "x" ? "LRS" : "GRS"}', "var.s", "x"),
+        )
+        self.assertEqual(
+            '${"x" == var.t ? "same" : "diff"}',
+            replace_string_value('${var.s == var.t ? "same" : "diff"}', "var.s", "x"),
+        )
+        # the same variable outside the comparison is substituted as before
+        self.assertEqual(
+            '${"x" == "x" ? x : "other"}',
+            replace_string_value('${var.s == "x" ? var.s : "other"}', "var.s", "x"),
+        )
+        self.assertEqual("LRS", evaluate_terraform('${"x" == "x" ? "LRS" : "GRS"}'))
+
+    def test_null_compare_rewrite_replaces_variable_reused_in_branch(self):
+        rewritten = replace_null_compare_operands("${var.max_pods != None ? var.max_pods : 7}", "var.max_pods")
+        self.assertEqual("${None != None ? None : 7}", rewritten)
+        self.assertEqual(7, evaluate_terraform(rewritten))
+
+    def test_null_compare_rewrite_does_not_rewrite_indexed_reference(self):
+        expression = "None == var.subnet_ids[0] ? 1 : 2"
+        self.assertEqual(expression, replace_null_compare_operands(expression, "var.subnet_ids"))
+
+    def test_null_compare_does_not_match_longer_tokens(self):
+        self.assertEqual(
+            "None == var.max_pods_extra ? None : var.max_pods_extra",
+            replace_null_compare_operands(
+                "None == var.max_pods_extra ? var.max_pods : var.max_pods_extra", "var.max_pods"
+            ),
+        )
+        self.assertEqual(
+            "None == null_resource.example.id",
+            replace_null_compare_operands("var.subnet_ids == null_resource.example.id", "var.subnet_ids"),
+        )
+        self.assertEqual(
+            "${None == None ? ['x'] : None}",
+            replace_null_compare_operands("${var.subnet_ids == None ? ['x'] : var.subnet_ids}", "var.subnet_ids"),
+        )
+        self.assertEqual("don't", evaluate_terraform('${None == None ? "don\'t" : "other"}').strip('"'))
+        # hcl2 emits a string template with an embedded expression as `${"pre-${expr}"}`,
+        # so the comparison sits inside double quotes and must still be rewritten.
+        self.assertEqual(
+            '${"pre-${None == None ? "a" : "b"}"}',
+            replace_null_compare_operands('${"pre-${var.subnet_ids == None ? "a" : "b"}"}', "var.subnet_ids"),
+        )
+
     def test_directive(self):
         input_str = '"Hello, %{ if "d" != "" }named%{ else }unnamed%{ endif }!"'
         expected = 'Hello, named!'
