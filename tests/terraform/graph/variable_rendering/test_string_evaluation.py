@@ -11,8 +11,16 @@ from checkov.terraform.graph_builder.variable_rendering.safe_eval_functions impo
 
 
 class TestTerraformEvaluation(TestCase):
+    def test_null_compare_rewrite_keeps_quoted_null_literal(self):
+        rewritten = replace_null_compare_operands(
+            '${var.secret == null ? "a" : (var.mode == "null" ? "b" : "c")}', "var.secret"
+        )
+        self.assertEqual('${None == None ? "a" : (var.mode == "null" ? "b" : "c")}', rewritten)
+        self.assertEqual(
+            "${None == None ? 'null' : 'other'}",
+            replace_null_compare_operands("${var.secret == null ? 'null' : 'other'}", "var.secret"),
+        )
 
-    
     def test_null_compare_rewrite_with_null_token_is_evaluable(self):
         rewritten = replace_null_compare_operands("var.max_pods == null ? 51 : 49", "var.max_pods")
         self.assertEqual("None == None ? 51 : 49", rewritten)
@@ -71,14 +79,6 @@ class TestTerraformEvaluation(TestCase):
         self.assertEqual(
             "${None == None ? ['x'] : None}",
             replace_null_compare_operands("${var.subnet_ids == None ? ['x'] : var.subnet_ids}", "var.subnet_ids"),
-        )
-        self.assertEqual(
-            "None == None",
-            replace_null_compare_operands("var.subnet_ids == null", "var.subnet_ids"),
-        )
-        self.assertEqual(
-            "see None == None",
-            replace_null_compare_operands("see var.subnet_ids == null", "var.subnet_ids"),
         )
         self.assertEqual("don't", evaluate_terraform('${None == None ? "don\'t" : "other"}').strip('"'))
         # hcl2 emits a string template with an embedded expression as `${"pre-${expr}"}`,

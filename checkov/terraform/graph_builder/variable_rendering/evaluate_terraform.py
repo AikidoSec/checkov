@@ -99,7 +99,11 @@ def _try_evaluate(input_str: Union[str, bool]) -> Any:
                     return input_str
 
 
-def _replace_bounded(text: str, old: str, new: str) -> str:
+def _replace_bounded(text: str, old: str, new: str, block_chars: str = "") -> str:
+    """
+    Replace `old` with `new` only where it is a whole token, i.e. not glued to an identifier character.
+    `block_chars` adds characters that, when adjacent on either side, also prevent the replacement.
+    """
     start = 0
     parts: list[str] = []
     while True:
@@ -110,8 +114,8 @@ def _replace_bounded(text: str, old: str, new: str) -> str:
         prev = text[idx - 1] if idx else ""
         end = idx + len(old)
         nxt = text[end] if end < len(text) else ""
-        blocked = (prev.isalnum() or prev in "._") if prev else False
-        blocked = blocked or ((nxt.isalnum() or nxt in "._[") if nxt else False)
+        blocked = (prev.isalnum() or prev in "._" + block_chars) if prev else False
+        blocked = blocked or ((nxt.isalnum() or nxt in "._[" + block_chars) if nxt else False)
         if blocked:
             parts.append(text[start:idx + 1])
             start = idx + 1
@@ -132,8 +136,9 @@ def replace_null_compare_operands(original_str: Any, var_name: str) -> Any:
     ):
         return original_str
     # hcl2 converts `null` to `None` except inside quoted string templates, and the evaluator only knows `None`.
+    # Only the bare keyword is converted; a quoted "null" string literal is left alone.
     original_str = _replace_bounded(original_str, var_name, "None")
-    return _replace_bounded(original_str, "null", "None")
+    return _replace_bounded(original_str, "null", "None", block_chars="\"'")
 
 
 def replace_string_value(original_str: Any, str_to_replace: str, replaced_value: str, keep_origin: bool = True) -> Any:
