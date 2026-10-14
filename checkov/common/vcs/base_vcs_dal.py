@@ -47,21 +47,23 @@ class BaseVCSDAL:
         """
         if self.http:
             return
+        # an empty https_proxy (common in compose files) means no proxy, same as unset
+        https_proxy = os.getenv('https_proxy')
         if ca_certificate:
             os.environ['REQUESTS_CA_BUNDLE'] = ca_certificate
-            try:
-                parsed_url = urllib3.util.parse_url(os.environ['https_proxy'])
-                self.http = urllib3.ProxyManager(os.environ['https_proxy'], cert_reqs='REQUIRED',
+            if https_proxy:
+                parsed_url = urllib3.util.parse_url(https_proxy)
+                self.http = urllib3.ProxyManager(https_proxy, cert_reqs='REQUIRED',
                                                  ca_certs=ca_certificate,
                                                  proxy_headers=urllib3.make_headers(proxy_basic_auth=parsed_url.auth))  # type:ignore[no-untyped-call]
-            except KeyError:
+            else:
                 self.http = urllib3.PoolManager(cert_reqs='REQUIRED', ca_certs=ca_certificate)
         else:
-            try:
-                parsed_url = urllib3.util.parse_url(os.environ['https_proxy'])
-                self.http = urllib3.ProxyManager(os.environ['https_proxy'],
+            if https_proxy:
+                parsed_url = urllib3.util.parse_url(https_proxy)
+                self.http = urllib3.ProxyManager(https_proxy,
                                                  proxy_headers=urllib3.make_headers(proxy_basic_auth=parsed_url.auth))  # type:ignore[no-untyped-call]
-            except KeyError:
+            else:
                 self.http = urllib3.PoolManager()
 
     def _request(self, endpoint: str, allowed_status_codes: list[int]) -> dict[str, Any] | None:

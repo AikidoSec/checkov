@@ -212,27 +212,29 @@ class BcPlatformIntegration:
 
         if self.http:
             return
+        # an empty https_proxy (common in compose files) means no proxy, same as unset
+        https_proxy = os.getenv('https_proxy')
         if ca_certificate:
             os.environ['REQUESTS_CA_BUNDLE'] = ca_certificate
             cert_reqs = 'CERT_NONE' if no_cert_verify else 'REQUIRED'
             logging.debug(f'Using CA cert {ca_certificate} and cert_reqs {cert_reqs}')
-            try:
-                parsed_url = urllib3.util.parse_url(os.environ['https_proxy'])
-                self.http = urllib3.ProxyManager(os.environ['https_proxy'],
+            if https_proxy:
+                parsed_url = urllib3.util.parse_url(https_proxy)
+                self.http = urllib3.ProxyManager(https_proxy,
                                                  cert_reqs=cert_reqs,
                                                  ca_certs=ca_certificate,
                                                  proxy_headers=urllib3.make_headers(proxy_basic_auth=parsed_url.auth))  # type:ignore[no-untyped-call]
-            except KeyError:
+            else:
                 self.http = urllib3.PoolManager(cert_reqs=cert_reqs, ca_certs=ca_certificate)
         else:
             cert_reqs = 'CERT_NONE' if no_cert_verify else None
             logging.debug(f'Using cert_reqs {cert_reqs}')
-            try:
-                parsed_url = urllib3.util.parse_url(os.environ['https_proxy'])
-                self.http = urllib3.ProxyManager(os.environ['https_proxy'],
+            if https_proxy:
+                parsed_url = urllib3.util.parse_url(https_proxy)
+                self.http = urllib3.ProxyManager(https_proxy,
                                                  cert_reqs=cert_reqs,
                                                  proxy_headers=urllib3.make_headers(proxy_basic_auth=parsed_url.auth))  # type:ignore[no-untyped-call]
-            except KeyError:
+            else:
                 self.http = urllib3.PoolManager(cert_reqs=cert_reqs)
         logging.debug('Successfully set up HTTP manager')
 
