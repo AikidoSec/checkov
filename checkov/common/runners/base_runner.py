@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from igraph import Graph
     from checkov.common.checks_infra.registry import Registry
     from checkov.common.graph.checks_infra.registry import BaseRegistry
+    from checkov.common.images.image_referencer import Image
     from checkov.common.typing import _CheckResult, LibraryGraphConnector
 
 _GraphManager = TypeVar("_GraphManager", bound="GraphManager[Any, Any]|None")
@@ -102,6 +103,11 @@ class BaseRunner(ABC, Generic[_GraphManager]):
         return False
 
     def included_paths(self) -> Iterable[str]:
+        return []
+
+    def get_image_inventory(self) -> list[Image]:
+        """Aikido: container images referenced by the scanned IaC, extracted from the graph
+        without any platform lookups. Runners that can't provide this return an empty list."""
         return []
 
     def set_external_data(

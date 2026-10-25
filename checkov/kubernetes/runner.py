@@ -9,7 +9,7 @@ from checkov.common.graph.checks_infra.registry import BaseRegistry
 from checkov.common.typing import LibraryGraphConnector
 from checkov.common.graph.graph_builder import CustomAttributes
 from checkov.common.graph.graph_builder.consts import GraphSource
-from checkov.common.images.image_referencer import ImageReferencerMixin
+from checkov.common.images.image_referencer import ImageReferencerMixin, Image
 from checkov.common.output.extra_resource import ExtraResource
 from checkov.common.output.record import Record
 from checkov.common.output.report import Report, merge_reports
@@ -139,6 +139,17 @@ class Runner(ImageReferencerMixin[None], BaseRunner[KubernetesGraphManager]):
             root_path=root_folder,
             runner_filter=runner_filter,
         )
+
+    def get_image_inventory(self) -> list[Image]:
+        # Aikido: same extraction the image referencer uses, minus the platform CVE lookups.
+        # K8sHelmRunner / K8sKustomizeRunner inherit this and plug in their own extract_images.
+        if not self.graph_manager:
+            return []
+        try:
+            return self.extract_images(graph_connector=self.graph_manager.get_reader_endpoint())
+        except Exception:
+            logging.warning(f"Failed to extract image inventory for {self.check_type}", exc_info=True)
+            return []
 
     def spread_list_items(self) -> None:
         for _, file_conf in self.definitions.items():
