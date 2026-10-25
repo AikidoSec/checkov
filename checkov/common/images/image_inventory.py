@@ -41,7 +41,7 @@ IMAGE_INVENTORY_FILE_NAME = "results_images.json"
 
 
 def image_inventory_enabled() -> bool:
-    return os.getenv(AIKIDO_IMAGES_OUTPUT_ENV, "").strip().lower() in ("1", "true", "yes", "on")
+    return os.getenv(AIKIDO_IMAGES_OUTPUT_ENV, "").strip().lower() in ("1", "true")
 
 
 def get_image_inventory_path() -> str | None:
