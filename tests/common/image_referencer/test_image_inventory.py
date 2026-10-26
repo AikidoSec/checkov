@@ -17,7 +17,7 @@ from checkov.common.images.image_inventory import (
 from checkov.common.images.image_referencer import Image
 
 
-@pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes", "on", " true "])
+@pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", " true "])
 def test_enabled_values(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv(AIKIDO_IMAGES_OUTPUT_ENV, value)
 
@@ -25,7 +25,7 @@ def test_enabled_values(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     assert get_image_inventory_path() == IMAGE_INVENTORY_FILE_NAME
 
 
-@pytest.mark.parametrize("value", ["", "false", "0", "no", "off", "/some/path/images.json", "anything"])
+@pytest.mark.parametrize("value", ["", "false", "0", "no", "off", "yes", "on", "/some/path/images.json", "anything"])
 def test_disabled_values(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv(AIKIDO_IMAGES_OUTPUT_ENV, value)
 
