@@ -25,6 +25,19 @@ class TestRunnerFilter(unittest.TestCase):
         instance = RunnerFilter()
         self.assertTrue(instance.should_run_check(check_id="CHECK_1"))
 
+    def test_file_regex_skip_matches_custom_rule_ids(self):
+        instance = RunnerFilter(skip_checks=["CKV_AWS_*:.*[.]json$"])
+        for check_id in ("CKV_AWS_24", "CKV_AWS_AIK_1"):
+            self.assertFalse(instance.should_run_check(check_id=check_id, file_origin_paths=["main.json"]))
+            self.assertTrue(instance.should_run_check(check_id=check_id, file_origin_paths=["main.tf"]))
+        self.assertTrue(instance.should_run_check(check_id="CKV_AZURE_AIK_1", file_origin_paths=["main.json"]))
+        self.assertEqual(instance.skip_checks_regex_patterns["CKV_AWS_*"], [".*[.]json$"])
+
+    def test_file_regex_skip_supports_specific_custom_rule_family(self):
+        instance = RunnerFilter(skip_checks=["CKV_AWS_AIK_*:.*[.]json$"])
+        self.assertFalse(instance.should_run_check(check_id="CKV_AWS_AIK_1", file_origin_paths=["main.json"]))
+        self.assertTrue(instance.should_run_check(check_id="CKV_AWS_24", file_origin_paths=["main.json"]))
+
     def test_should_run_specific_enable(self):
         instance = RunnerFilter(checks=["CHECK_1"])
         self.assertTrue(instance.should_run_check(check_id="CHECK_1"))

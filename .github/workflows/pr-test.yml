@@ -136,7 +136,8 @@ jobs:
           pipenv --python ${{ matrix.python }}
           pipenv sync --dev
           pipenv run pip install websocket-client==1.9.0
-          pipenv run pip install pytest-benchmark py
+          # Newer benchmark releases require pytest >=8.1, incompatible with our locked pytest-asyncio.
+          pipenv run pip install pytest-benchmark==5.0.1 pytest==7.4.4 py
           pipenv run python setup.py sdist bdist_wheel
           pipenv run pip install dist/checkov-*.whl
       - name: Clone terraform-aws-components
