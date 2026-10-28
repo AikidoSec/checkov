@@ -23,9 +23,15 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
 
     @staticmethod
     def _values(value: Any) -> list[Any]:
-        if isinstance(value, list):
-            return [item for nested in value for item in SecurityGroupUnrestrictedIngress3306._values(nested)]
-        return [value]
+        values = []
+        pending = [value]
+        while pending:
+            item = pending.pop()
+            if isinstance(item, list):
+                pending.extend(reversed(item))
+            else:
+                values.append(item)
+        return values
 
     @staticmethod
     def _scalar(conf: dict[str, Any], key: str) -> Any:

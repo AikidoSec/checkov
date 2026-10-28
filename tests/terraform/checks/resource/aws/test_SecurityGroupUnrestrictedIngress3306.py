@@ -86,6 +86,15 @@ def test_unresolved_inline_ingress(ingress: list[Any]) -> None:
     assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf({"ingress": ingress}) == CheckResult.UNKNOWN
 
 
+def test_deeply_nested_values_preserve_order() -> None:
+    nested: Any = "0.0.0.0/0"
+    for _ in range(1500):
+        nested = [nested]
+    assert SecurityGroupUnrestrictedIngress3306._values(["10.0.0.0/8", nested, []]) == [
+        "10.0.0.0/8", "0.0.0.0/0",
+    ]
+
+
 def test_runner() -> None:
     rule = SecurityGroupUnrestrictedIngress3306()
     directory = Path(__file__).parent / "example_SecurityGroupUnrestrictedIngress3306"
