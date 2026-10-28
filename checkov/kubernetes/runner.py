@@ -140,6 +140,17 @@ class Runner(ImageReferencerMixin[None], BaseRunner[KubernetesGraphManager]):
             runner_filter=runner_filter,
         )
 
+    def get_image_inventory(self) -> list[Image]:
+        # Aikido: same extraction the image referencer uses, minus the platform CVE lookups.
+        # K8sHelmRunner / K8sKustomizeRunner inherit this and plug in their own extract_images.
+        if not self.graph_manager:
+            return []
+        try:
+            return self.extract_images(graph_connector=self.graph_manager.get_reader_endpoint())
+        except Exception:
+            logging.warning(f"Failed to extract image inventory for {self.check_type}", exc_info=True)
+            return []
+
     def spread_list_items(self) -> None:
         for _, file_conf in self.definitions.items():
             for resource in file_conf:

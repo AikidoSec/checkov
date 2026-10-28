@@ -133,6 +133,13 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         self.target_folder_path = ''
         self.root_folder = ''
         self.runner_filter: "RunnerFilter | None" = None
+        self.k8s_runner: K8sHelmRunner | None = None
+
+    def get_image_inventory(self) -> list[Image]:
+        # Aikido: images are extracted from the rendered chart graph held by the inner k8s runner
+        if not self.k8s_runner:
+            return []
+        return self.k8s_runner.get_image_inventory()
 
     def get_k8s_target_folder_path(self) -> str:
         return self.target_folder_path
@@ -382,6 +389,7 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
             self.pbar.turn_off_progress_bar()
 
         k8s_runner = K8sHelmRunner()
+        self.k8s_runner = k8s_runner
         k8s_runner.chart_dir_and_meta = self.convert_helm_to_k8s(root_folder, files, runner_filter)
         k8s_runner.original_root_dir = str(root_folder)
         k8s_runner.tmp_root_dir = self.get_k8s_target_folder_path()
