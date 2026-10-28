@@ -136,8 +136,7 @@ jobs:
           pipenv --python ${{ matrix.python }}
           pipenv sync --dev
           pipenv run pip install websocket-client==1.9.0
-          # Upgrade pytest and its asyncio plugin together; pytest >=9.0.3 fixes CVE-2025-71176.
-          pipenv run pip install pytest-benchmark==5.3.0 pytest==9.0.3 pytest-asyncio==1.4.1
+          pipenv run pip install pytest-benchmark py
           pipenv run python setup.py sdist bdist_wheel
           pipenv run pip install dist/checkov-*.whl
       - name: Clone terraform-aws-components
