@@ -7,7 +7,7 @@ verify_ssl = true
 [packages]
 aiodns = {version = "==4.0.0"}
 aiohappyeyeballs = {version = "==2.6.1"}
-aiohttp = {version = "==3.13.3"}
+aiohttp = {version = "==3.14.4"}
 aiomultiprocess = {version = "==0.9.1"}
 aioresponses = {version = "==0.7.8"}
 aiosignal = {version = "==1.4.0"}
@@ -55,7 +55,7 @@ flake8-bugbear = {version = "==25.11.29"}
 freezegun = {version = "==1.5.5"}
 frozenlist = {version = "==1.8.0"}
 gitdb = {version = "==4.0.12"}
-gitpython = {version = "==3.1.50"}
+gitpython = {version = "==3.2.1"}
 h11 = {version = "==0.16.0"}
 httpcore = {version = "==1.0.9"}
 httpx = {version = "==0.28.1"}
@@ -157,12 +157,12 @@ typing-inspection = {version = "==0.4.2"}
 unidiff = {version = "==0.7.5"}
 update-checker = {version = "==0.18.0"}
 uritools = {version = "==6.0.1"}
-urllib3 = {version = "==2.6.3"}
+urllib3 = {version = "==2.8.0"}
 urllib3-mock = {version = "==0.3.3"}
 virtualenv = {version = "==21.1.0"}
 wcwidth = {version = "==0.6.0"}
 xmltodict = {version = "==1.0.4"}
-yarl = {version = "==1.23.0"}
+yarl = {version = "==1.25.1"}
 zipp = {version = "==3.23.0"}
 
 [requires]
