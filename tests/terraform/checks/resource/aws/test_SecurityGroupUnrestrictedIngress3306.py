@@ -27,7 +27,9 @@ from checkov.terraform.runner import Runner
     ({"cidr_blocks": [[]], "ipv6_cidr_blocks": [["::1/128"]]}, CheckResult.PASSED),
     ({"cidr_blocks": [[]], "source_security_group_id": ["sg-example"]}, CheckResult.PASSED),
     ({"cidr_blocks": [[]], "security_groups": [["sg-example"]]}, CheckResult.PASSED),
-    ({"cidr_blocks": [[]], "prefix_list_ids": [["pl-example"]]}, CheckResult.PASSED),
+    ({"cidr_blocks": [[]], "prefix_list_ids": [["pl-example"]]}, CheckResult.UNKNOWN),
+    ({"cidr_blocks": [["10.42.0.0/16"]], "prefix_list_ids": [["pl-example"]]}, CheckResult.UNKNOWN),
+    ({"cidr_blocks": [[]], "prefix_list_ids": [["pl-example"]], "from_port": [443], "to_port": [443]}, CheckResult.PASSED),
     ({"cidr_blocks": [[]], "self": [True]}, CheckResult.PASSED),
     ({"protocol": ["udp"]}, CheckResult.PASSED),
     ({"protocol": [17]}, CheckResult.PASSED),
@@ -67,6 +69,22 @@ def test_modern_ipv6(cidr: str) -> None:
 def test_modern_all_protocols_without_ports() -> None:
     conf = {"ip_protocol": ["-1"], "cidr_ipv4": ["0.0.0.0/0"]}
     assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf(conf) == CheckResult.FAILED
+
+
+@pytest.mark.parametrize("overrides, expected", [
+    ({}, CheckResult.UNKNOWN),
+    ({"cidr_ipv4": ["0.0.0.0/0"]}, CheckResult.FAILED),
+    ({"referenced_security_group_id": ["sg-example"]}, CheckResult.UNKNOWN),
+    ({"ip_protocol": ["udp"]}, CheckResult.PASSED),
+    ({"from_port": [443], "to_port": [443]}, CheckResult.PASSED),
+])
+def test_modern_prefix_list(overrides: dict[str, Any], expected: CheckResult) -> None:
+    conf = {
+        "ip_protocol": ["tcp"], "from_port": [3306], "to_port": [3306],
+        "prefix_list_id": ["pl-example"],
+    }
+    conf.update(overrides)
+    assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf(conf) == expected
 
 
 def test_inline_unknown_does_not_mask_public_rule() -> None:

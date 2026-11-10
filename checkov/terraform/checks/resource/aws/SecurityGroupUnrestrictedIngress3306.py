@@ -84,11 +84,16 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
                     return CheckResult.FAILED
 
         # These are not explicit public CIDR sources. Do not let them mask a public CIDR above.
-        for key in ("security_groups", "source_security_group_id", "referenced_security_group_id", "prefix_list_ids"):
+        for key in ("security_groups", "source_security_group_id", "referenced_security_group_id"):
             if any(self._values(conf.get(key, []))):
                 has_source = True
         if self._scalar(conf, "self") is True:
             has_source = True
+
+        # Prefix lists can contain public CIDRs; their IDs alone do not establish a safe source.
+        for key in ("prefix_list_ids", "prefix_list_id"):
+            if any(self._values(conf.get(key, []))):
+                unknown = True
 
         if unknown or not has_source:
             return CheckResult.UNKNOWN
