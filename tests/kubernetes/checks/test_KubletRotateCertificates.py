@@ -23,12 +23,12 @@ class TestKubletRotateCertificates(unittest.TestCase):
         self.assertEqual(summary['parsing_errors'], 0)
         
         for record in report.failed_checks:
-            with self.subTest(record=record):
+            with self.subTest(file_path=record.file_path, check_id=record.check_id):
                 self.assertIn("FAILED", record.file_path)
                 self.assertIn(record.check_id, [check.id])
             
         for record in report.passed_checks:
-            with self.subTest(record=record):
+            with self.subTest(file_path=record.file_path, check_id=record.check_id):
                 self.assertIn("PASSED", record.file_path)
                 self.assertIn(record.check_id, [check.id])
 
