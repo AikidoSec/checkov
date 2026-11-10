@@ -100,6 +100,7 @@ policyuniverse = {version = "==1.5.1.20231109"}
 pre-commit = {version = "==4.5.1"}
 prettytable = {version = "==3.16.0"}
 propcache = {version = "==0.4.1"}
+py-cpuinfo2 = {version = "==10.1.1"}
 pycares = {version = "==5.0.1"}
 pycep-parser = {git = "https://github.com/AikidoSec/pycep.git", ref = "0ccebe878712b6a0ff27edb7da2fb6d01b574d5a"}
 pycodestyle = {version = "==2.14.0"}
@@ -109,8 +110,9 @@ pydantic-core = {version = "==2.41.5"}
 pyflakes = {version = "==3.4.0"}
 pygments = {version = "==2.19.2"}
 pyparsing = {version = "==3.3.2"}
-pytest = {version = "==7.4.4"}
-pytest-asyncio = {version = "==0.23.8"}
+pytest = {version = "==9.0.3"}
+pytest-asyncio = {version = "==1.4.1"}
+pytest-benchmark = {version = "==5.3.0"}
 pytest-cov = {version = "==5.0.0"}
 pytest-mock = {version = "==3.15.1"}
 pytest-xdist = {version = "==3.8.0"}

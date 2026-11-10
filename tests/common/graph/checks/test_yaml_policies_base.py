@@ -19,6 +19,14 @@ from checkov.runner_filter import RunnerFilter
 
 
 class TestYamlPoliciesBase(TestCase):
+    # pytest 9 instantiates unittest classes before discovering their methods.
+    # Only parameterized subclasses have a graph backend and can be instantiated.
+    __test__ = False
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.__test__ = getattr(cls, "graph_framework", None) is not None
+
     def __init__(self, graph_manager: GraphManager, real_graph_checks_path: str,
                  test_checks_path: Optional[str], check_type: str, test_file_path: str,
                  args):
