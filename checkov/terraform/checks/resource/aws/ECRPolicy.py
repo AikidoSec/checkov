@@ -96,11 +96,16 @@ class ECRPolicy(BaseResourceCheck):
                 )
                 # A concrete unexcluded repository action proves a grant. This
                 # small witness set is not an exhaustive ECR permissions model.
-                repository_actions = ("ecr:batchgetimage", "ecr:getdownloadurlforlayer", "ecr:putimage", "ecr:deleterepository")
-                has_grant = any(
-                    not any(fnmatch.fnmatchcase(action, exclusion) for exclusion in exclusions)
-                    for action in repository_actions
+                repository_actions = (
+                    "ecr:batchgetimage", "ecr:getdownloadurlforlayer",
+                    "ecr:putimage", "ecr:deleterepository",
                 )
+                has_grant = False
+                for action in repository_actions:
+                    is_excluded = any(fnmatch.fnmatchcase(action, exclusion) for exclusion in exclusions)
+                    if not is_excluded:
+                        has_grant = True
+                        break
                 if not known_scope or not has_grant:
                     unknown = True
                     continue
