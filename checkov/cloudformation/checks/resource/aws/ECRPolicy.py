@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import fnmatch
 import logging
 import re
 from typing import Any
@@ -45,37 +46,96 @@ class ECRPolicy(BaseResourceCheck):
                         f"Malformed policy configuration {str(policy_text)} of resource {self.entity_path}\n{e}"
                     )
                 return CheckResult.UNKNOWN
-        if "Statement" in policy_text.keys() and isinstance(policy_text["Statement"], list):
-            for statement_index, statement in enumerate(policy_text["Statement"]):
-                if "Principal" in statement.keys():
-                    for principal_index, principal in enumerate(statement["Principal"]):
-                        if principal == "*" and not self.check_for_constrained_condition(statement):
-                            self.evaluated_keys = [
-                                f"Properties/RepositoryPolicyText/Statement/[{statement_index}]/Principal/[{principal_index}]"
-                            ]
-                            return CheckResult.FAILED
-        return CheckResult.PASSED
-
-    def check_for_constrained_condition(self, statement: dict[str, Any]) -> bool:
-        """
-        Checks to see if there is a constraint on a a wildcarded principal
-        :param statement: statement from aws_repository_configuration
-        :return: true if there is a constraint
-        """
-        if "Condition" in statement:
-            condition = statement["Condition"]
-            string_equals = None
-            if "StringEquals" in condition:
-                string_equals = condition["StringEquals"]
-            elif "ForAllValues:StringEquals" in condition:
-                string_equals = condition["ForAllValues:StringEquals"]
-            elif "ForAnyValue:StringEquals" in condition:
-                string_equals = condition["ForAnyValue:StringEquals"]
-
-            if isinstance(string_equals, dict) and "aws:PrincipalOrgID" in string_equals:
-                return True
-
-        return False
+        if not isinstance(policy_text, dict):
+            return CheckResult.UNKNOWN
+        statements = policy_text.get("Statement")
+        if isinstance(statements, dict):
+            statements = [statements]
+        if not isinstance(statements, list) or any(not isinstance(s, dict) for s in statements):
+            return CheckResult.UNKNOWN
+        has_deny = any(s.get("Effect") == "Deny" for s in statements)
+        unknown = False
+        for statement in statements:
+            # Deny statements do not grant access and may protect an Allow.
+            if statement.get("Effect") == "Deny":
+                continue
+            if statement.get("Effect") != "Allow" or "NotPrincipal" in statement:
+                unknown = True
+                continue
+            principal = statement.get("Principal")
+            if isinstance(principal, dict):
+                if "AWS" not in principal and principal.get("Service") == "*":
+                    unknown = True
+                    continue
+                principal = principal.get("AWS", principal.get("Service"))
+            principals = principal if isinstance(principal, list) else [principal]
+            invalid_principals = not principals or any(
+                not isinstance(p, str)
+                or not p
+                or "${" in p
+                or p.startswith("Ref.")
+                or ("*" in p and p != "*")
+                for p in principals
+            )
+            if invalid_principals:
+                unknown = True
+                continue
+            if "*" not in principals:
+                continue
+            # Keep the same conservative boundary as Terraform. Evaluating the
+            # effect of conditions and Denies is outside this rule's scope.
+            if ("Condition" in statement and statement["Condition"] != {}) or has_deny:
+                unknown = True
+                continue
+            uses_not_action = "NotAction" in statement
+            if uses_not_action and "Action" in statement:
+                unknown = True
+                continue
+            actions = statement.get("NotAction" if uses_not_action else "Action")
+            actions = actions if isinstance(actions, list) else [actions]
+            invalid_actions = not actions or any(
+                not isinstance(a, str)
+                or "${" in a
+                or a.startswith("Ref.")
+                or (a != "*" and not re.fullmatch(r"[\w-]+:[\w*?]+", a))
+                for a in actions
+            )
+            if invalid_actions:
+                unknown = True
+                continue
+            if uses_not_action:
+                # Evaluate exclusions only when a repository action can be proven
+                # allowed. Do not expand this into an effective-permissions engine.
+                exclusions = [a.lower() for a in actions]
+                if "*" in exclusions or "ecr:*" in exclusions:
+                    continue
+                resources = statement.get("Resource")
+                resources = resources if isinstance(resources, list) else [resources]
+                known_scope = resources and "NotResource" not in statement and all(
+                    isinstance(r, str)
+                    and "${" not in r
+                    and not r.startswith("Ref.")
+                    and (r == "*" or re.fullmatch(r"arn:[^:]+:ecr:[^:]+:[^:]+:repository/.+", r))
+                    for r in resources
+                )
+                repository_actions = (
+                    "ecr:batchgetimage", "ecr:getdownloadurlforlayer",
+                    "ecr:putimage", "ecr:deleterepository",
+                )
+                has_grant = False
+                for action in repository_actions:
+                    is_excluded = any(fnmatch.fnmatchcase(action, exclusion) for exclusion in exclusions)
+                    if not is_excluded:
+                        has_grant = True
+                        break
+                if not known_scope or not has_grant:
+                    unknown = True
+                    continue
+            elif any(a != "*" and not a.lower().startswith("ecr:") for a in actions):
+                unknown = True
+                continue
+            return CheckResult.FAILED
+        return CheckResult.UNKNOWN if unknown else CheckResult.PASSED
 
 
 check = ECRPolicy()
