@@ -50,7 +50,9 @@ class LambdaFunctionIsNotPublic(BaseResourceCheck):
             value = _scalar(conf.get(key))
             if value is None:
                 continue
-            if key == "invoked_via_function_url" and (value is False or value == "false"):
+            is_function_url_invocation = key == "invoked_via_function_url"
+            is_disabled = value is False or value == "false"
+            if is_function_url_invocation and is_disabled:
                 continue
             unknown_constraint = True
 
