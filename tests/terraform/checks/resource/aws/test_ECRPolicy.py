@@ -111,5 +111,29 @@ class TestECRPolicy(unittest.TestCase):
             with self.subTest(policy=policy):
                 self.assertEqual(check.scan_resource_conf({"policy": [policy]}), CheckResult.UNKNOWN)
 
+    def test_not_action_grants_and_scope(self):
+        grant = {"Effect": "Allow", "Principal": "*", "Resource": "*", "NotAction": "s3:*"}
+        for name, statement, expected in (
+            ("other service excluded", grant, CheckResult.FAILED),
+            ("individual ECR action excluded", {**grant, "NotAction": "ecr:BatchGetImage"}, CheckResult.FAILED),
+            ("read actions excluded", {**grant, "NotAction": ["ecr:Get*", "ecr:Batch*"]}, CheckResult.FAILED),
+            ("all ECR actions excluded", {**grant, "NotAction": "ecr:*"}, CheckResult.PASSED),
+            ("all actions excluded", {**grant, "NotAction": "*"}, CheckResult.PASSED),
+            ("case insensitive exclusion", {**grant, "NotAction": ["ECR:*", "s3:*"]}, CheckResult.PASSED),
+            ("repository ARN", {**grant, "Resource": "arn:aws:ecr:eu-west-1:123456789012:repository/app"}, CheckResult.FAILED),
+            ("other resource scope", {**grant, "Resource": "arn:aws:s3:::app/*"}, CheckResult.UNKNOWN),
+            ("unresolved scope", {**grant, "Resource": "${aws_ecr_repository.app.arn}"}, CheckResult.UNKNOWN),
+            ("unresolved exclusions", {**grant, "NotAction": "${var.exclusions}"}, CheckResult.UNKNOWN),
+            ("both action elements", {**grant, "Action": "ecr:*"}, CheckResult.UNKNOWN),
+            ("malformed exclusions", {**grant, "NotAction": "ecr:"}, CheckResult.UNKNOWN),
+            ("no known unexcluded action", {**grant, "NotAction": ["ecr:Batch*", "ecr:Get*", "ecr:Put*", "ecr:Delete*"]}, CheckResult.UNKNOWN),
+            ("conditional", {**grant, "Condition": {"StringEquals": {"aws:PrincipalOrgID": "o-example"}}}, CheckResult.UNKNOWN),
+        ):
+            for policy in ({"Statement": [statement]}, json.dumps({"Statement": [statement]})):
+                with self.subTest(name=name, string=isinstance(policy, str)):
+                    self.assertEqual(check.scan_resource_conf({"policy": [policy]}), expected)
+        document = {"Statement": [grant, {**grant, "Effect": "Deny"}]}
+        self.assertEqual(check.scan_resource_conf({"policy": [document]}), CheckResult.UNKNOWN)
+
 if __name__ == "__main__":
     unittest.main()

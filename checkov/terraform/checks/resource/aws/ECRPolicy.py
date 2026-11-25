@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import fnmatch
+import re
 from typing import Any
 
 from checkov.common.models.enums import CheckResult, CheckCategories
@@ -46,8 +48,14 @@ class ECRPolicy(BaseResourceCheck):
                     continue
                 principal = principal.get("AWS", principal.get("Service"))
             principals = principal if isinstance(principal, list) else [principal]
-            if not principals or any(not isinstance(p, str) or not p or is_terraform_variable_dependent(p)
-                                     or ("*" in p and p != "*") for p in principals):
+            invalid_principals = not principals or any(
+                not isinstance(p, str)
+                or not p
+                or is_terraform_variable_dependent(p)
+                or ("*" in p and p != "*")
+                for p in principals
+            )
+            if invalid_principals:
                 unknown = True
                 continue
             if "*" not in principals:
@@ -57,10 +65,46 @@ class ECRPolicy(BaseResourceCheck):
             if ("Condition" in statement and statement["Condition"] != {}) or has_deny:
                 unknown = True
                 continue
-            actions = statement.get("Action")
+            uses_not_action = "NotAction" in statement
+            if uses_not_action and "Action" in statement:
+                unknown = True
+                continue
+            actions = statement.get("NotAction" if uses_not_action else "Action")
             actions = actions if isinstance(actions, list) else [actions]
-            if not actions or any(not isinstance(a, str) or not a or is_terraform_variable_dependent(a)
-                                  or (a != "*" and (not a.lower().startswith("ecr:") or a.lower() == "ecr:")) for a in actions):
+            invalid_actions = not actions or any(
+                not isinstance(a, str)
+                or is_terraform_variable_dependent(a)
+                or (a != "*" and not re.fullmatch(r"[\w-]+:[\w*?]+", a))
+                for a in actions
+            )
+            if invalid_actions:
+                unknown = True
+                continue
+            if uses_not_action:
+                # NotAction is a complement, not a list of granted actions. An
+                # excluded non-ECR service still leaves repository actions allowed.
+                exclusions = [a.lower() for a in actions]
+                if "*" in exclusions or "ecr:*" in exclusions:
+                    continue
+                resources = statement.get("Resource")
+                resources = resources if isinstance(resources, list) else [resources]
+                known_scope = resources and "NotResource" not in statement and all(
+                    isinstance(r, str)
+                    and not is_terraform_variable_dependent(r)
+                    and (r == "*" or re.fullmatch(r"arn:[^:]+:ecr:[^:]+:[^:]+:repository/.+", r))
+                    for r in resources
+                )
+                # A concrete unexcluded repository action proves a grant. This
+                # small witness set is not an exhaustive ECR permissions model.
+                repository_actions = ("ecr:batchgetimage", "ecr:getdownloadurlforlayer", "ecr:putimage", "ecr:deleterepository")
+                has_grant = any(
+                    not any(fnmatch.fnmatchcase(action, exclusion) for exclusion in exclusions)
+                    for action in repository_actions
+                )
+                if not known_scope or not has_grant:
+                    unknown = True
+                    continue
+            elif any(a != "*" and not a.lower().startswith("ecr:") for a in actions):
                 unknown = True
                 continue
             return CheckResult.FAILED
