@@ -8,7 +8,8 @@ from checkov.common.util.type_forcers import extract_policy_dict
 from checkov.common.util.var_utils import is_terraform_variable_dependent
 from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck
 
-# Messaging access is distinct from metadata/administrative topic permissions.
+# Use currently documented messaging actions, not legacy sns:Receive entries.
+# https://docs.aws.amazon.com/sns/latest/dg/sns-access-policy-language-api-permissions-reference.html
 _MESSAGING_ACTIONS = ("sns:publish", "sns:subscribe")
 
 
@@ -115,39 +116,30 @@ def _allows_messaging(statement: dict[str, Any]) -> bool | None:
                 return None
             if not service.isascii() or not service.replace("-", "").isalnum():
                 return None
-            valid_operation = operation.isascii() and all(c.isalnum() or c in "*?" for c in operation)
+            is_ascii_operation = operation.isascii()
+            has_valid_characters = all(c.isalnum() or c in "*?" for c in operation)
+            valid_operation = is_ascii_operation and has_valid_characters
             if not valid_operation:
                 return None
         patterns.append(pattern)
+    resources = statement.get("Resource")
+    resources = resources if isinstance(resources, list) else [resources]
+    # SNS topic policies permit only one resource per statement. Do not infer
+    # deployed exposure from a mixed-resource policy SNS documents as unsupported.
+    if len(resources) != 1:
+        return None
+    resource = resources[0]
+    if not isinstance(resource, str) or not resource:
+        return None
     excludes_all_sns = "*" in patterns or "sns:*" in patterns
     if uses_not_action and excludes_all_sns:
         return False
-
-    resources = statement.get("Resource")
-    resources = resources if isinstance(resources, list) else [resources]
-    if not resources:
-        return None
-    has_topic_scope = False
-    for resource in resources:
-        if not isinstance(resource, str) or not resource:
+    if is_terraform_variable_dependent(resource):
+        # Explicit SNS actions are assessed in the attached topic's context.
+        # NotAction needs a known topic scope to evaluate its complement.
+        if uses_not_action:
             return None
-        if is_terraform_variable_dependent(resource):
-            # Explicit SNS actions are assessed in the attached topic's context.
-            # NotAction needs at least one known topic scope for its complement.
-            if not uses_not_action:
-                has_topic_scope = True
-            continue
-        if _known_topic_scope(resource):
-            has_topic_scope = True
-            continue
-        # Resource-list entries are alternatives; other valid ARNs cannot narrow
-        # the topic grant. Malformed entries remain unknown.
-        parts = resource.split(":", 5)
-        if len(parts) != 6:
-            return None
-        if parts[0] != "arn" or not parts[1] or not parts[2] or not parts[5]:
-            return None
-    if not has_topic_scope:
+    elif not _known_topic_scope(resource):
         return None
     for action in _MESSAGING_ACTIONS:
         matches = any(fnmatch.fnmatchcase(action, pattern) for pattern in patterns)

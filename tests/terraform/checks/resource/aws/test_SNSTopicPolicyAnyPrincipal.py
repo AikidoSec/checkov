@@ -64,6 +64,7 @@ class TestBackupVaultEncrypted(unittest.TestCase):
             ("service", [{**public, "Principal": {"Service": "s3.amazonaws.com"}}], CheckResult.PASSED),
             ("deny only", [{**public, "Effect": "Deny"}], CheckResult.PASSED),
             ("metadata only", [{**public, "Action": "sns:GetTopicAttributes"}], CheckResult.UNKNOWN),
+            ("legacy Receive-only entry", [{**public, "Action": "sns:Receive"}], CheckResult.UNKNOWN),
             ("administration only", [{**public, "Action": "sns:SetTopicAttributes"}], CheckResult.UNKNOWN),
             ("API batch name", [{**public, "Action": "sns:PublishBatch"}], CheckResult.UNKNOWN),
             ("partial wildcard principal", [{**public, "Principal": {"AWS": "arn:aws:iam::*:role/app"}}], CheckResult.UNKNOWN),
@@ -107,9 +108,10 @@ class TestBackupVaultEncrypted(unittest.TestCase):
             ("both action elements", {**base, "Action": "sns:*"}, CheckResult.UNKNOWN),
             ("unknown exclusions", {**base, "NotAction": "${var.actions}"}, CheckResult.UNKNOWN),
             ("unknown scope", {**base, "Resource": "${var.arn}"}, CheckResult.UNKNOWN),
-            ("unknown then known topic", {**base, "Resource": ["${var.arn}", topic]}, CheckResult.FAILED),
-            ("topic then other service", {**base, "Resource": [topic, bucket]}, CheckResult.FAILED),
-            ("other service then topic", {**base, "Resource": [bucket, topic]}, CheckResult.FAILED),
+            ("single resource list", {**base, "Resource": [topic]}, CheckResult.FAILED),
+            ("unknown then known topic", {**base, "Resource": ["${var.arn}", topic]}, CheckResult.UNKNOWN),
+            ("topic then other service", {**base, "Resource": [topic, bucket]}, CheckResult.UNKNOWN),
+            ("other service then topic", {**base, "Resource": [bucket, topic]}, CheckResult.UNKNOWN),
             ("other service only", {**base, "Resource": bucket}, CheckResult.UNKNOWN),
             ("malformed resource", {**base, "Resource": [topic, "arn:invalid"]}, CheckResult.UNKNOWN),
             ("messaging excluded", {**base, "NotAction": ["sns:Publish", "sns:Subscribe"]}, CheckResult.UNKNOWN),
@@ -119,7 +121,8 @@ class TestBackupVaultEncrypted(unittest.TestCase):
                     self.assertEqual(check.scan_resource_conf({"policy": [policy]}), expected)
         for resources in ([topic, bucket], [bucket, topic]):
             statement = {"Effect": "Allow", "Principal": "*", "Action": "sns:Publish", "Resource": resources}
-            self.assertEqual(check.scan_resource_conf({"policy": [{"Statement": [statement]}]}), CheckResult.FAILED)
+            # SNS documents a one-resource quota, unlike generic IAM Resource lists.
+            self.assertEqual(check.scan_resource_conf({"policy": [{"Statement": [statement]}]}), CheckResult.UNKNOWN)
 
     def test_runner_includes_inline_topic_policy(self):
         text = '''resource "aws_sns_topic" "public" {
