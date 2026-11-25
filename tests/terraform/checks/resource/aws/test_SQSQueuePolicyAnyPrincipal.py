@@ -135,6 +135,25 @@ class TestBackupVaultEncrypted(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(check.scan_resource_conf({"policy": [value]}), CheckResult.UNKNOWN)
 
+    def test_resource_alternatives_do_not_hide_queue_grants(self):
+        queue = "arn:aws:sqs:eu-west-1:123456789012:queue"
+        bucket = "arn:aws:s3:::example-bucket/*"
+        for name, resources, expected in (
+            ("queue then other service", [queue, bucket], CheckResult.FAILED),
+            ("other service then queue", [bucket, queue], CheckResult.FAILED),
+            ("wildcard then other service", ["*", bucket], CheckResult.FAILED),
+            ("unknown then known queue", ["${var.resource}", queue], CheckResult.FAILED),
+            ("known queue then unknown", [queue, "${var.resource}"], CheckResult.FAILED),
+            ("other service only", [bucket], CheckResult.UNKNOWN),
+            ("malformed ARN", [queue, "arn:invalid"], CheckResult.UNKNOWN),
+            ("malformed value", [queue, None], CheckResult.UNKNOWN),
+        ):
+            for action in ({"Action": "sqs:SendMessage"}, {"NotAction": "s3:*"}):
+                statement = {"Effect": "Allow", "Principal": "*", "Resource": resources, **action}
+                for policy in ({"Statement": [statement]}, json.dumps({"Statement": [statement]})):
+                    with self.subTest(name=name, not_action="NotAction" in action, string=isinstance(policy, str)):
+                        self.assertEqual(check.scan_resource_conf({"policy": [policy]}), expected)
+
 
 if __name__ == "__main__":
     unittest.main()

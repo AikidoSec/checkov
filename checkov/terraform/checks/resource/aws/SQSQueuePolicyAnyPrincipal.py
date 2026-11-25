@@ -127,17 +127,28 @@ def _allows_shared_queue_action(statement: dict[str, Any]) -> bool | None:
     resources = resources if isinstance(resources, list) else [resources]
     if not resources:
         return None
+    has_queue_scope = False
     for resource in resources:
         if not isinstance(resource, str) or not resource:
             return None
         if is_terraform_variable_dependent(resource):
             # An explicit SQS Action is evaluated in the attached queue policy's
             # context. NotAction needs a known scope to evaluate its complement.
-            if uses_not_action:
-                return None
+            if not uses_not_action:
+                has_queue_scope = True
             continue
-        if not _known_queue_scope(resource):
+        if _known_queue_scope(resource):
+            has_queue_scope = True
+            continue
+        # Resource entries are ORed. A valid non-queue ARN cannot cancel an
+        # applicable queue grant in another entry, but malformed values stay unknown.
+        parts = resource.split(":", 5)
+        if len(parts) != 6:
             return None
+        if parts[0] != "arn" or not parts[1] or not parts[2] or not parts[5]:
+            return None
+    if not has_queue_scope:
+        return None
     for action in _SHARED_QUEUE_ACTIONS:
         matches = any(fnmatch.fnmatchcase(action, pattern) for pattern in patterns)
         is_granted = not matches if uses_not_action else matches
