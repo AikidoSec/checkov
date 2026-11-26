@@ -11,6 +11,7 @@ from checkov.common.util.var_utils import is_terraform_variable_dependent
 from checkov.terraform.checks.resource.base_resource_check import BaseResourceCheck
 
 _VALUE_ACTIONS = ("secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret")
+_IAM_LITERAL_BRACKETS = str.maketrans({"[": "[[]", "]": "[]]"})
 
 
 class SecretManagerSecretPolicyAnyPrincipal(BaseResourceCheck):
@@ -61,7 +62,10 @@ class SecretManagerSecretPolicyAnyPrincipal(BaseResourceCheck):
                 prepared.pop("NotAction", None)
                 analysis = ResourcePolicyDocument(policy={"Statement": [prepared]})
                 principals = analysis.statements[0].principals
-                invalid_principals = not principals or any(
+                if not principals:
+                    unknown = True
+                    continue
+                invalid_principals = any(
                     not isinstance(p, str)
                     or not p
                     or is_terraform_variable_dependent(p)
@@ -148,7 +152,10 @@ def _matches_target(value: Any, target: str) -> bool:
             parts = resource.split(":", 5)
             if len(parts) != 6 or parts[0] != "arn" or not parts[1] or not parts[2] or not parts[5]:
                 return False
-            if _secret_arn(target) and fnmatch.fnmatchcase(target, resource):
+            # IAM Resource patterns use '*'/'?', not shell bracket classes.
+            # Translate once so inserted escapes aren't escaped a second time.
+            iam_pattern = resource.translate(_IAM_LITERAL_BRACKETS)
+            if _secret_arn(target) and fnmatch.fnmatchcase(target, iam_pattern):
                 matches = True
     return matches
 
