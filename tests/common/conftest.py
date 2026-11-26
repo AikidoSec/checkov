@@ -1,9 +1,26 @@
 from __future__ import annotations
 
+import inspect
+from typing import Any
+from unittest.mock import Mock
+
+import aioresponses.core
 import pytest
+from aiohttp import ClientResponse
 
 from checkov.common.bridgecrew.bc_source import SourceType
 from checkov.common.bridgecrew.platform_integration import BcPlatformIntegration, bc_integration
+
+
+# aiohttp>=3.14 requires a `stream_writer` argument that aioresponses (<=0.7.9) doesn't pass
+if "stream_writer" in inspect.signature(ClientResponse.__init__).parameters:
+
+    class _AioresponsesClientResponse(ClientResponse):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            kwargs.setdefault("stream_writer", Mock(output_size=0))
+            super().__init__(*args, **kwargs)
+
+    aioresponses.core.ClientResponse = _AioresponsesClientResponse  # type: ignore[misc]
 
 
 @pytest.fixture()

@@ -26,6 +26,12 @@ from checkov.common.bridgecrew.integration_features.features.licensing_integrati
 from checkov.common.bridgecrew.integration_features.integration_feature_registry import integration_feature_registry
 from checkov.common.bridgecrew.check_type import CheckType
 from checkov.common.bridgecrew.severities import Severities
+from checkov.common.images.image_inventory import (
+    build_image_inventory,
+    get_image_inventory_path,
+    image_inventory_enabled,
+    write_image_inventory,
+)
 from checkov.common.images.image_referencer import ImageReferencer
 from checkov.common.models.enums import ErrorStatus
 from checkov.common.output.csv import CSVSBOM
@@ -50,6 +56,7 @@ from checkov.terraform.runner import Runner as tf_runner
 from checkov.kustomize.runner import filter_kubernetes_report_for_kustomize_dirs
 
 if TYPE_CHECKING:
+    from checkov.common.images.image_referencer import Image
     from checkov.common.output.baseline import Baseline
     from checkov.common.runners.base_runner import BaseRunner  # noqa
     from checkov.runner_filter import RunnerFilter
@@ -97,6 +104,8 @@ class RunnerRegistry:
         self.licensing_integration = licensing_integration  # can be maniuplated by unit tests
         self.secrets_omitter_class = secrets_omitter_class
         self.check_type_to_graph: dict[str, Graph | DiGraph] = {}
+        # Aikido: images referenced by the scanned IaC, accumulated over run() calls (one per root folder)
+        self.image_inventory: list[dict[str, Any]] = []
         for runner in runners:
             if isinstance(runner, image_runner):
                 runner.image_referencers = self.image_referencing_runners
@@ -110,6 +119,7 @@ class RunnerRegistry:
             repo_root_for_plan_enrichment: list[str | Path] | None = None,
     ) -> list[Report]:
         kustomize_managed_dirs: set[str] = set()
+        run_images: dict[str, list[Image]] = defaultdict(list)
         if not self.runners:
             logging.error('There are no runners to run. This can happen if you specify a file type and a framework that are not compatible '
                           '(e.g., `--file xyz.yaml --framework terraform`), or if you specify a framework with missing dependencies (e.g., '
@@ -124,13 +134,15 @@ class RunnerRegistry:
                                         collect_skip_comments=collect_skip_comments)]
                 if runner_check_type == CheckType.KUSTOMIZE:
                     kustomize_managed_dirs = getattr(self.runners[0], 'managed_directories', set()) or set()
+                if image_inventory_enabled():
+                    run_images[runner_check_type].extend(self.runners[0].get_image_inventory())
             else:
                 # This is the only runner, so raise a clear indication of failure
                 raise ModuleNotEnabledError(f'The framework "{runner_check_type}" is part of the "{self.licensing_integration.get_subscription_for_runner(runner_check_type).name}" module, which is not enabled in the platform')
         else:
             def _parallel_run(
                 runner: _BaseRunner,
-            ) -> tuple[Report | list[Report], str | None, DiGraph | Graph | None, set[str] | None]:
+            ) -> tuple[Report | list[Report], str | None, DiGraph | Graph | None, set[str] | None, dict[str, list[Image]]]:
                 report = runner.run(
                     root_folder=root_folder,
                     external_checks_dir=external_checks_dir,
@@ -147,9 +159,12 @@ class RunnerRegistry:
                 if runner.check_type == CheckType.KUSTOMIZE:
                     managed_dirs = getattr(runner, 'managed_directories', None)
 
+                # Aikido: runners execute in forked processes, so the inventory has to travel back with the result
+                images = {runner.check_type: runner.get_image_inventory()} if image_inventory_enabled() else {}
+
                 if runner.graph_manager:
-                    return report, runner.check_type, runner.graph_manager.get_reader_endpoint(), managed_dirs
-                return report, None, None, managed_dirs
+                    return report, runner.check_type, runner.graph_manager.get_reader_endpoint(), managed_dirs, images
+                return report, None, None, managed_dirs, images
 
             valid_runners = []
             invalid_runners = []
@@ -182,13 +197,17 @@ class RunnerRegistry:
             full_check_type_to_graph = {}
             for result in parallel_runner_results:
                 if result is not None:
-                    report, check_type, graph, managed_dirs = result
+                    report, check_type, graph, managed_dirs, images = result
                     reports.append(report)
                     if check_type is not None and graph is not None:
                         full_check_type_to_graph[check_type] = graph
                     if managed_dirs:
                         kustomize_managed_dirs.update(managed_dirs)
+                    for image_check_type, runner_images in images.items():
+                        run_images[image_check_type].extend(runner_images)
             self.check_type_to_graph = full_check_type_to_graph
+
+        self._write_image_inventory(run_images, root_folder)
 
         merged_reports = self._merge_reports(reports)
         self._filter_kubernetes_kustomize_overlap(merged_reports, kustomize_managed_dirs)
@@ -206,6 +225,18 @@ class RunnerRegistry:
             self.check_type_to_graph = {runner.check_type: runner.graph_manager.get_reader_endpoint() for runner
                                         in self.runners if runner.graph_manager}
         return self.scan_reports
+
+    def _write_image_inventory(self, run_images: dict[str, list[Image]], root_folder: str | None) -> None:
+        """Aikido: dump the referenced container images to results_images.json in the CWD,
+        if AIKIDO_IMAGES_OUTPUT=true.
+
+        Rewritten on every run() call with everything collected so far, so multiple
+        root folders in one invocation end up in a single file."""
+        path = get_image_inventory_path()
+        if not path:
+            return
+        self.image_inventory.extend(build_image_inventory(run_images, root_folder))
+        write_image_inventory(path, self.image_inventory)
 
     def _merge_reports(self, reports: Iterable[Report | list[Report]]) -> list[Report]:
         """Merges reports with the same check_type"""

@@ -382,12 +382,19 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         self.kustomizeFileMappings: "dict[str, str]" = {}
         self.templateRendererCommand: str | None = None
         self.target_folder_path = ''
+        self.k8s_runner: K8sKustomizeRunner | None = None
 
         self.checkov_allow_kustomize_file_edits = convert_str_to_bool(os.getenv("CHECKOV_ALLOW_KUSTOMIZE_FILE_EDITS",
                                                                                 False))
 
     def get_k8s_target_folder_path(self) -> str:
         return self.target_folder_path
+
+    def get_image_inventory(self) -> list[Image]:
+        # Aikido: images are extracted from the rendered overlay graph held by the inner k8s runner
+        if not self.k8s_runner:
+            return []
+        return self.k8s_runner.get_image_inventory()
 
     def get_kustomize_metadata(self) -> dict[str, dict[str, Any]]:
         return {'kustomizeMetadata': self.kustomizeProcessedFolderAndMeta,
@@ -729,6 +736,7 @@ class Runner(BaseRunner["KubernetesGraphManager"]):
         target_dir = ""
         try:
             k8s_runner = K8sKustomizeRunner()
+            self.k8s_runner = k8s_runner
             # k8s_runner.run() will kick off both CKV_ and CKV2_ checks and return a merged results object.
             target_dir = self.get_k8s_target_folder_path()
             k8s_runner.report_mutator_data = self.get_kustomize_metadata()
