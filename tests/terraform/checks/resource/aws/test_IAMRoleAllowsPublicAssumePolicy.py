@@ -63,6 +63,7 @@ class TestIAMRoleTrust(unittest.TestCase):
             ("empty_string", "", passed),
             ("absent", None, passed),
             ("empty_object", {}, passed),
+            ("empty_annotated_object", {"__startline__": 1, "__endline__": 1}, passed),
             ("protective_deny_after", policy(public, deny), unknown),
             ("protective_deny_before", policy(deny, public), unknown),
             ("conditional_deny", policy(public, {**deny, "Condition": {"StringNotEquals": {"aws:PrincipalOrgID": "o-example"}}}), unknown),
@@ -143,6 +144,7 @@ class TestIAMRoleTrust(unittest.TestCase):
         names = {
             "root_wildcard", "aws_list", "statement_object", "empty_condition", "specific_root", "service", "oidc",
             "aws_not_action_includes_assume", "not_action_excludes_assume",
+            "empty_object",
             "condition_organization", "protective_deny_after",
         }
         cases = [case for case in self.cases() if case[0] in names]

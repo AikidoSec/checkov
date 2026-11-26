@@ -61,7 +61,8 @@ def scan_iam_role_trust_policy(policy: Any) -> CheckResult:
     policy_dict = extract_policy_dict(policy)
     if not isinstance(policy_dict, dict):
         return CheckResult.UNKNOWN
-    if not policy_dict:
+    # CloudFormation adds line metadata even to an empty policy document.
+    if not policy_dict.keys() - {"__startline__", "__endline__"}:
         return CheckResult.PASSED
     statements = policy_dict.get("Statement")
     if isinstance(statements, dict):
