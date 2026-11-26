@@ -14,14 +14,16 @@ def _is_literal(value: Any) -> bool:
 
 
 def _allows_assume_role(statement: dict[str, Any]) -> bool | None:
-    if "NotAction" in statement:
+    if ("Action" in statement) == ("NotAction" in statement):
         return None
-    actions = statement.get("Action")
+    not_action = "NotAction" in statement
+    actions = statement["NotAction"] if not_action else statement["Action"]
     actions = actions if isinstance(actions, list) else [actions]
     if not actions or any(not _is_literal(action) or "[" in action for action in actions):
         return None
     # Action names are case-insensitive; IAM supports * and ? wildcards.
-    return any(fnmatchcase("sts:assumerole", action.lower()) for action in actions)
+    matches = any(fnmatchcase("sts:assumerole", action.lower()) for action in actions)
+    return not matches if not_action else matches
 
 
 def _is_public_principal(statement: dict[str, Any]) -> bool | None:
@@ -56,12 +58,12 @@ def scan_iam_role_trust_policy(policy: Any) -> CheckResult:
     if policy is None or policy == "" or policy == {}:
         # Preserve the rule's existing behavior for absent/empty policies.
         return CheckResult.PASSED
-    policy = extract_policy_dict(policy)
-    if not isinstance(policy, dict):
+    policy_dict = extract_policy_dict(policy)
+    if not isinstance(policy_dict, dict):
         return CheckResult.UNKNOWN
-    if not policy:
+    if not policy_dict:
         return CheckResult.PASSED
-    statements = policy.get("Statement")
+    statements = policy_dict.get("Statement")
     if isinstance(statements, dict):
         statements = [statements]
     if not isinstance(statements, list):

@@ -67,7 +67,15 @@ class TestIAMRoleTrust(unittest.TestCase):
             ("protective_deny_before", policy(deny, public), unknown),
             ("conditional_deny", policy(public, {**deny, "Condition": {"StringNotEquals": {"aws:PrincipalOrgID": "o-example"}}}), unknown),
             ("scoped_deny", policy(public, {**deny, "Principal": {"AWS": role}}), unknown),
-            ("not_action", policy(allow(NotAction="sts:TagSession")), unknown),
+            ("conflicting_action_fields", policy(allow(NotAction="sts:TagSession")), unknown),
+            ("not_action_includes_assume", policy({"Effect": "Allow", "Principal": "*", "NotAction": "sts:TagSession"}), failed),
+            ("aws_not_action_includes_assume", policy({"Effect": "Allow", "Principal": {"AWS": "*"}, "NotAction": ["sts:TagSession"]}), failed),
+            ("not_action_excludes_assume", policy({"Effect": "Allow", "Principal": "*", "NotAction": "sts:AssumeRole"}), passed),
+            ("not_action_excludes_sts", policy({"Effect": "Allow", "Principal": "*", "NotAction": "STS:*"}), passed),
+            ("not_action_excludes_all", policy({"Effect": "Allow", "Principal": "*", "NotAction": "*"}), passed),
+            ("not_action_unresolved", policy({"Effect": "Allow", "Principal": "*", "NotAction": "${var.excluded_actions}"}), unknown),
+            ("not_action_relevant_deny", policy(public, {"Effect": "Deny", "Principal": "*", "NotAction": "sts:TagSession"}), unknown),
+            ("not_action_irrelevant_deny", policy(public, {"Effect": "Deny", "Principal": "*", "NotAction": "sts:AssumeRole"}), failed),
             ("not_principal", policy(allow(NotPrincipal={"AWS": role})), unknown),
             ("missing_action", policy({"Effect": "Allow", "Principal": "*"}), unknown),
             ("empty_action", policy(allow(action=[])), unknown),
@@ -134,6 +142,7 @@ class TestIAMRoleTrust(unittest.TestCase):
     def test_both_runners(self):
         names = {
             "root_wildcard", "aws_list", "statement_object", "empty_condition", "specific_root", "service", "oidc",
+            "aws_not_action_includes_assume", "not_action_excludes_assume",
             "condition_organization", "protective_deny_after",
         }
         cases = [case for case in self.cases() if case[0] in names]
