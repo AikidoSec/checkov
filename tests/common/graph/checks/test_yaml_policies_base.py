@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import yaml
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import List, Optional, Any
 from unittest import TestCase
 
@@ -18,7 +18,10 @@ from checkov.common.output.record import Record
 from checkov.runner_filter import RunnerFilter
 
 
-class TestYamlPoliciesBase(TestCase):
+class TestYamlPoliciesBase(TestCase, ABC):
+    # pytest instantiates the undecorated @parameterized_class original during collection
+    graph_framework = "NETWORKX"
+
     def __init__(self, graph_manager: GraphManager, real_graph_checks_path: str,
                  test_checks_path: Optional[str], check_type: str, test_file_path: str,
                  args):
