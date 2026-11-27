@@ -50,6 +50,8 @@ class TestIAMRoleSelfModification(unittest.TestCase):
             ("resource_exclusion_not_analyzed", [{"Effect": "Allow", "Action": "iam:PutRolePolicy", "NotResource": self_role}], passed),
             ("conflicting_resource_fields", [allow("iam:PutRolePolicy", NotResource=self_role)], unknown),
             ("explicit_deny", [write, deny], unknown),
+            ("attachment_explicit_deny", [allow("iam:AttachRolePolicy"), {"Effect": "Deny", "Action": "iam:AttachRolePolicy", "Resource": "*"}], unknown),
+            ("both_writes_denied", [allow(["iam:PutRolePolicy", "iam:AttachRolePolicy"]), {"Effect": "Deny", "Action": ["iam:PutRolePolicy", "iam:AttachRolePolicy"], "Resource": "*"}], unknown),
             ("deny_before_allow", [deny, write], unknown),
             ("scoped_deny", [write, {**deny, "Resource": other_role}], unknown),
             ("conditional_deny", [write, {**deny, "Condition": {"Bool": {"aws:MultiFactorAuthPresent": "false"}}}], unknown),
