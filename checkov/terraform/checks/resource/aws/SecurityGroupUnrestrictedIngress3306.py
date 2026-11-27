@@ -120,7 +120,7 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
         to_port = force_int(raw_to) if not isinstance(raw_to, (bool, float)) else None
         if from_port is None or to_port is None or not 0 <= from_port <= to_port <= 65535:
             return None
-        return bool(from_port <= 3306 <= to_port)
+        return from_port <= 3306 <= to_port
 
     def _scan_rule(self, conf: dict[str, Any]) -> CheckResult:
         self.evaluated_keys = [
