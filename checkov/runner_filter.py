@@ -257,11 +257,13 @@ class RunnerFilter(object):
         """
         if not file_origin_paths:
             return False
-        regex_patterns = self.skip_checks_regex_patterns.get(check_id, [])
-        # In case skip is generic, for example, CKV_AZURE_*.
-        generic_check_id = f"{'_'.join(i for i in check_id.split('_')[:-1])}_*"
-        generic_check_regex_patterns = self.skip_checks_regex_patterns.get(generic_check_id, [])
-        regex_patterns.extend(generic_check_regex_patterns)
+        # Match the whole ID, including custom IDs such as CKV_AWS_AIK_1.
+        regex_patterns = [
+            pattern
+            for check_pattern, patterns in self.skip_checks_regex_patterns.items()
+            if fnmatch.fnmatch(check_id, check_pattern)
+            for pattern in patterns
+        ]
         if not regex_patterns:
             return False
 
