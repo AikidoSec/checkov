@@ -52,7 +52,7 @@ from checkov.terraform.runner import Runner
     ({"cidr_blocks": [[]]}, CheckResult.UNKNOWN),
 ])
 def test_rule(overrides: dict[str, Any], expected: CheckResult) -> None:
-    conf = {
+    conf: dict[str, list[Any]] = {
         "type": ["ingress"], "protocol": ["tcp"], "from_port": [3306],
         "to_port": [3306], "cidr_blocks": [["0.0.0.0/0"]],
     }
@@ -60,9 +60,43 @@ def test_rule(overrides: dict[str, Any], expected: CheckResult) -> None:
     assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf(conf) == expected
 
 
+@pytest.mark.parametrize("conf, expected", [
+    ({"cidr_blocks": [["0.0.0.0/0"]]}, True),
+    ({"cidr_blocks": [["10.0.0.0/8"]]}, False),
+    ({"prefix_list_ids": [["pl-example"]]}, None),
+])
+def test_public_source_predicate(conf: dict[str, Any], expected: bool | None) -> None:
+    assert SecurityGroupUnrestrictedIngress3306()._has_public_source(conf) is expected
+
+
+@pytest.mark.parametrize("conf, expected", [
+    ({"ip_protocol": ["-1"]}, True),
+    ({"protocol": ["tcp"], "from_port": [443], "to_port": [443]}, False),
+    ({"protocol": ["${var.protocol}"]}, None),
+])
+def test_mysql_port_predicate(conf: dict[str, Any], expected: bool | None) -> None:
+    assert SecurityGroupUnrestrictedIngress3306()._allows_mysql_port(conf) is expected
+
+
+@pytest.mark.parametrize("cidr, port, expected", [
+    ("0.0.0.0/0", 3306, CheckResult.FAILED),
+    ("0.0.0.0/0", 443, CheckResult.PASSED),
+    ("0.0.0.0/0", "${var.port}", CheckResult.UNKNOWN),
+    ("10.0.0.0/8", 3306, CheckResult.PASSED),
+    ("10.0.0.0/8", 443, CheckResult.PASSED),
+    ("10.0.0.0/8", "${var.port}", CheckResult.PASSED),
+    ("${var.source}", 3306, CheckResult.UNKNOWN),
+    ("${var.source}", 443, CheckResult.PASSED),
+    ("${var.source}", "${var.port}", CheckResult.UNKNOWN),
+])
+def test_source_and_port_result_combinations(cidr: str, port: int | str, expected: CheckResult) -> None:
+    conf: dict[str, list[Any]] = {"protocol": ["tcp"], "from_port": [port], "to_port": [port], "cidr_blocks": [[cidr]]}
+    assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf(conf) == expected
+
+
 @pytest.mark.parametrize("cidr", ["::/0", "0:0:0:0:0:0:0:0/0", "0000:0000:0000:0000:0000:0000:0000:0000/0"])
 def test_modern_ipv6(cidr: str) -> None:
-    conf = {"ip_protocol": ["tcp"], "from_port": [3306], "to_port": [3306], "cidr_ipv6": [cidr]}
+    conf: dict[str, list[Any]] = {"ip_protocol": ["tcp"], "from_port": [3306], "to_port": [3306], "cidr_ipv6": [cidr]}
     assert SecurityGroupUnrestrictedIngress3306().scan_resource_conf(conf) == CheckResult.FAILED
 
 
@@ -79,7 +113,7 @@ def test_modern_all_protocols_without_ports() -> None:
     ({"from_port": [443], "to_port": [443]}, CheckResult.PASSED),
 ])
 def test_modern_prefix_list(overrides: dict[str, Any], expected: CheckResult) -> None:
-    conf = {
+    conf: dict[str, list[Any]] = {
         "ip_protocol": ["tcp"], "from_port": [3306], "to_port": [3306],
         "prefix_list_id": ["pl-example"],
     }

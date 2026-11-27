@@ -62,11 +62,12 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
             return CheckResult.UNKNOWN if unknown else CheckResult.PASSED
 
         # A security group without inline ingress allows no ingress by itself.
-        if getattr(self, "entity_type", None) == "aws_security_group":
+        if self.entity_type == "aws_security_group":
             return CheckResult.PASSED
         return self._scan_rule(conf)
 
-    def _public_source(self, conf: dict[str, Any]) -> CheckResult:
+    def _has_public_source(self, conf: dict[str, Any]) -> bool | None:
+        """Whether the rule has a public source; None means unresolved."""
         unknown = False
         has_source = False
         for key in ("cidr_blocks", "ipv6_cidr_blocks", "cidr_ipv4", "cidr_ipv6"):
@@ -81,7 +82,7 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
                 if network is None:
                     unknown = True
                 elif network.prefixlen == 0:
-                    return CheckResult.FAILED
+                    return True
 
         # These are not explicit public CIDR sources. Do not let them mask a public CIDR above.
         for key in ("security_groups", "source_security_group_id", "referenced_security_group_id"):
@@ -96,29 +97,30 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
                 unknown = True
 
         if unknown or not has_source:
-            return CheckResult.UNKNOWN
-        return CheckResult.PASSED
+            return None
+        return False
 
-    def _mysql_port(self, conf: dict[str, Any]) -> CheckResult:
+    def _allows_mysql_port(self, conf: dict[str, Any]) -> bool | None:
+        """Whether the protocol/ports allow TCP 3306; None means unresolved."""
         protocol = self._scalar(conf, "ip_protocol" if "ip_protocol" in conf else "protocol")
         if protocol is None:
-            return CheckResult.UNKNOWN
+            return None
         protocol = str(protocol).lower()
         if protocol == "-1":
-            return CheckResult.FAILED
+            return True
         if protocol not in ("tcp", "6"):
             # Known non-TCP protocols cannot expose a MySQL TCP listener.
             if protocol in ("udp", "icmp", "icmpv6") or protocol.isdecimal():
-                return CheckResult.PASSED
-            return CheckResult.UNKNOWN
+                return False
+            return None
 
         raw_from = self._scalar(conf, "from_port")
         raw_to = self._scalar(conf, "to_port")
         from_port = force_int(raw_from) if not isinstance(raw_from, (bool, float)) else None
         to_port = force_int(raw_to) if not isinstance(raw_to, (bool, float)) else None
         if from_port is None or to_port is None or not 0 <= from_port <= to_port <= 65535:
-            return CheckResult.UNKNOWN
-        return CheckResult.FAILED if from_port <= 3306 <= to_port else CheckResult.PASSED
+            return None
+        return bool(from_port <= 3306 <= to_port)
 
     def _scan_rule(self, conf: dict[str, Any]) -> CheckResult:
         self.evaluated_keys = [
@@ -127,11 +129,11 @@ class SecurityGroupUnrestrictedIngress3306(BaseResourceCheck):
                 "cidr_blocks", "ipv6_cidr_blocks", "cidr_ipv4", "cidr_ipv6",
             ) if key in conf
         ]
-        source = self._public_source(conf)
-        port = self._mysql_port(conf)
-        if source == CheckResult.PASSED or port == CheckResult.PASSED:
+        public_source = self._has_public_source(conf)
+        allows_mysql = self._allows_mysql_port(conf)
+        if public_source is False or allows_mysql is False:
             return CheckResult.PASSED
-        if source == CheckResult.FAILED and port == CheckResult.FAILED:
+        if public_source is True and allows_mysql is True:
             return CheckResult.FAILED
         return CheckResult.UNKNOWN
 
