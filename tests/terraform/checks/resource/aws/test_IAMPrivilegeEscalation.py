@@ -66,9 +66,10 @@ class TestIAMPolicyAttachedToGroupOrRoles(unittest.TestCase):
             ("scoped_policy_version", [allow("iam:CreatePolicyVersion", "arn:aws:iam::123456789012:policy/app")], CheckResult.PASSED),
             ("explicit_deny", [allow(lambda_path), {"Effect": "Deny", "Action": "iam:PassRole", "Resource": "*"}], CheckResult.PASSED),
             ("condition_suppresses_analysis", [allow(lambda_path, Condition={"StringEquals": {"iam:PassedToService": "lambda.amazonaws.com"}})], CheckResult.PASSED),
-            # These PASS results document CloudSplaining limitations, not proof
-            # that self-editing roles or time-constrained grants cannot escalate.
-            ("inline_role_self_edit_missed", [allow(["iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy"])], CheckResult.PASSED),
+            # Managed-policy attachment relationships and time-constrained
+            # escalation paths remain limitations; these PASS results are not
+            # proof of safety. Bound inline-role self-writes are tested below.
+            ("managed_role_writes_not_linked", [allow(["iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy"])], CheckResult.PASSED),
             ("unrelated_condition_missed", [allow(lambda_path, Condition={"DateGreaterThan": {"aws:CurrentTime": "2020-01-01T00:00:00Z"}})], CheckResult.PASSED),
         ):
             with self.subTest(name=name):
@@ -79,7 +80,7 @@ class TestIAMPolicyAttachedToGroupOrRoles(unittest.TestCase):
     def test_separate_policies_are_not_combined(self):
         for name, actions in (("passrole", ["iam:PassRole"]), ("compute", ["ec2:RunInstances"])):
             with self.subTest(name=name):
-                conf = {"policy": [{"Statement": [{"Effect": "Allow", "Action": actions, "Resource": "*"}]}]}
+                conf = {"role": ["scanner-example-role"], "policy": [{"Statement": [{"Effect": "Allow", "Action": actions, "Resource": "*"}]}]}
                 self.assertEqual(check.run("/split.tf", conf, name, "aws_iam_role_policy", None)["result"], CheckResult.PASSED)
 
     def test_runner_handles_policy_resources_and_inline_policies(self):
@@ -87,17 +88,22 @@ class TestIAMPolicyAttachedToGroupOrRoles(unittest.TestCase):
             "managed_lambda": ("aws_iam_policy", ["iam:PassRole", "lambda:CreateFunction", "lambda:InvokeFunction"]),
             "managed_version": ("aws_iam_policy", ["iam:CreatePolicyVersion", "iam:SetDefaultPolicyVersion"]),
             "inline_user": ("aws_iam_user_policy", ["iam:CreateAccessKey", "iam:CreateLoginProfile", "iam:PutUserPolicy"]),
-            "inline_role_limit": ("aws_iam_role_policy", ["iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy"]),
+            "inline_role_self_edit": ("aws_iam_role_policy", ["iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy"]),
             "scoped": ("aws_iam_policy", ["iam:CreatePolicyVersion"]),
             "disabled": ("aws_iam_policy", ["iam:CreatePolicyVersion"]),
         }
         blocks = []
+        bindings = {
+            "aws_iam_role_policy": 'role = "scanner-example-role"',
+            "aws_iam_user_policy": 'user = "scanner-example-user"',
+        }
         for name, (kind, actions) in policies.items():
             resource = "arn:aws:iam::123456789012:policy/app" if name == "scoped" else "*"
             policy = json.dumps({"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": actions, "Resource": resource}]})
             count = "count = 0" if name == "disabled" else ""
             blocks.append(f'''resource "{kind}" "{name}" {{
   name = "scanner-example-{name}"
+  {bindings.get(kind, "")}
   {count}
   policy = <<POLICY
 {policy}
@@ -108,9 +114,10 @@ POLICY
             report = Runner().run(root_folder=folder, runner_filter=RunnerFilter(checks=[check.id]))
             self.assertEqual(report.parsing_errors, [])
             self.assertEqual({r.resource for r in report.failed_checks}, {
-                "aws_iam_policy.managed_lambda", "aws_iam_policy.managed_version", "aws_iam_user_policy.inline_user"})
+                "aws_iam_policy.managed_lambda", "aws_iam_policy.managed_version", "aws_iam_user_policy.inline_user",
+                "aws_iam_role_policy.inline_role_self_edit"})
             self.assertEqual({r.resource for r in report.passed_checks}, {
-                "aws_iam_role_policy.inline_role_limit", "aws_iam_policy.scoped"})
+                "aws_iam_policy.scoped"})
 
 
 if __name__ == "__main__":
